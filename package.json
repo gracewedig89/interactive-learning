@@ -1,0 +1,35 @@
+{
+  "name": "interactive-learning",
+  "version": "1.0.0",
+  "description": "Interactive study platform for Accounting, SQL and Language Arts, synced with Canvas",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --watch --env-file-if-exists=.env server/index.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gracewedig89/interactive-learning.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gracewedig89/interactive-learning/issues"
+  },
+  "homepage": "https://github.com/gracewedig89/interactive-learning#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "dompurify": "^3.4.15",
+    "express": "^5.2.1",
+    "marked": "^18.0.14",
+    "node-cron": "^4.6.0",
+    "sql.js": "^1.14.2"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
+}
