@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import accounting from "../public/lessons/accounting.js";
 import sql from "../public/lessons/sql.js";
+import formulas from "../public/lessons/formulas.js";
 
 const root = new URL("../", import.meta.url);
 const read = (p) => fs.readFileSync(new URL(p, root), "utf8");
@@ -33,6 +34,7 @@ ${read("web/app.css")}
 ${Object.keys(vendor).filter((n) => n !== "pdf.worker.min.js").map((n) => `<script src="vendor/${n}"></script>`).join("\n")}
 <script>
 window.LESSONS = ${json({ accounting, sql, "language-arts": [], biology: [] })};
+window.FORMULAS = ${json(formulas)};
 window.PRACTICE = ${json({ schema: read("public/lessons/practice-db.sql"), data: read("public/lessons/practice-data.sql") })};
 </script>
 <script>

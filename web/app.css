@@ -206,6 +206,31 @@ table.ref td:first-child { font-weight: 650; }
 .stats-table caption { caption-side: bottom; text-align: left; font-size: .8rem; color: var(--ink-soft); padding-top: .4rem; }
 .stats-table th[scope="row"] { font-weight: 650; background: none; font-size: .9rem; }
 .stats-table .num { font-variant-numeric: tabular-nums; }
+.why-list { margin: .35rem 0; padding-left: 1.2rem; display: grid; gap: .3rem; color: var(--ink); }
+.result-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .75rem; margin-top: .6rem; align-items: start; }
+.result tr.flag td { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+.target tr.flag td { background: var(--good-soft); color: var(--good); }
+.target summary, .steps-toggle summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.steps-toggle { margin-top: .6rem; }
+.steps-panel { display: grid; gap: .4rem; margin-top: .4rem; }
+.sql-steps { margin: 0; padding-left: 1.3rem; display: grid; gap: .8rem; }
+.sql-steps li::marker { font-weight: 700; color: var(--accent); }
+.sql-steps code { background: var(--sunken); padding: .1rem .35rem; border-radius: 4px; }
+.sheets { display: grid; gap: .5rem; margin-top: .5rem; }
+.formulas td:nth-child(2) code, .formulas td:nth-child(3) code { white-space: nowrap; }
+.tb select { min-width: 13rem; }
+.tb .amt, .fs .amt { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .9rem; align-items: start; }
+.fs { border: 1px solid var(--rule); border-radius: 8px; padding: .8rem .9rem; background: var(--ground); }
+.fs h3 { font-size: 1rem; text-align: center; }
+.fs-sub { text-align: center; margin: 0 0 .5rem; font-size: .82rem; color: var(--ink-soft); }
+.fs table { font-size: .88rem; }
+.fs td { padding: .3rem .35rem; }
+.fs tr.sec td { font-weight: 700; border-bottom: 0; padding-top: .6rem; }
+.fs tr.total td { border-top: 2px solid var(--ink); font-weight: 700; }
+.fs tr.total input { width: 7.5rem; text-align: right; padding: .3rem .4rem; }
+.fs tr.total .fb { font-weight: 500; margin-top: .3rem; }
+.fs tr.wrong-line td { color: var(--bad); background: var(--bad-soft); }
 .builder { display: grid; gap: .75rem; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: none; padding: .35rem .8rem; font-weight: 600; font-size: .9rem; }

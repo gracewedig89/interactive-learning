@@ -491,32 +491,48 @@ const RENDER = {
         })));
       }));
     });
-    return h("section", { class: "block" }, h("h2", {}, "Practice database"), el);
+    return h("section", { class: "block" }, h("h2", {}, "Practice database"), el,
+      h("details", { class: "steps-toggle" }, h("summary", {}, "Open the data sheets (see every row)"), dataSheets()));
   },
 
   sql: (b) => h("section", { class: "block" }, h("h2", {}, b.title || "Write the query"), b.intro ? h("p", { style: "margin:0" }, b.intro) : null, b.tasks.map((task, n) => {
     const id = `sql-${uid()}`;
     const editor = h("textarea", { class: "code", id, rows: 3, spellcheck: "false", placeholder: "SELECT …" });
-    const out = h("div");
+    const out = h("div", { class: "sql-out" });
     const tid = track.add();
     const hint = task.hint ? h("p", { class: "note", hidden: true }, "💡 ", task.hint) : null;
     let tries = 0;
-    const reveal = h("button", { class: "linkish", hidden: true, onclick: () => (editor.value = task.solution) }, "Show an answer");
+    const reveal = h("button", { class: "linkish", hidden: true, onclick: () => { editor.value = task.solution; out.replaceChildren(stepsPanel(task.solution, "How the answer works, one step at a time")); } }, "Show an answer and how it works");
     const run = async () => {
       const q = editor.value.trim();
       if (!q) return;
       tries++;
+      let want;
+      try { want = await runQuery(task.solution); } catch { want = { columns: [], rows: [] }; }
       try {
-        const [mine, want] = await Promise.all([runQuery(q), runQuery(task.solution)]);
+        const mine = await runQuery(q);
         const ok = sameResult(mine, want, task.ordered);
-        out.replaceChildren(resultTable(mine), feedback(ok,
-          ok ? "Your result matches." : `Expected ${want.rows.length} row(s) × ${want.columns.length} column(s).`,
-          `Task: "${task.prompt}"\nMy query:\n${q}\nIt gives the wrong result. What's wrong?`));
+        const diff = diffRows(mine, want);
+        const why = ok ? [] : diagnoseSql(q, mine, want, task, diff);
+        const miss = { concept: task.prompt, detail: `My query was: ${q}` };
+        out.replaceChildren(
+          h("div", { class: "fb " + (ok ? "good" : "bad") }, h("b", {}, ok ? "✓ Correct. Your result matches." : "✗ Not quite."),
+            why.length ? h("ul", { class: "why-list" }, why.map((w) => h("li", {}, w))) : null,
+            !ok ? h("div", { class: "row" },
+              h("button", { class: "linkish", onclick: () => tutor.ask(`Task: "${task.prompt}"\nMy query:\n${q}\nMy result had ${mine.rows.length} row(s) with columns ${mine.columns.join(", ") || "(none)"}; the answer needs ${want.rows.length} row(s) with ${want.columns.length} column(s).\nWhat the app spotted: ${why.join(" ")}\nWalk me through what's wrong without just giving me the query.`) }, "Ask the tutor why"),
+              sample ? h("button", { class: "linkish", onclick: () => practice.make([miss]) }, "Practice this") : null) : null),
+          h("div", { class: "result-pair" },
+            h("div", {}, h("span", { class: "tile-label" }, `Your result (${mine.rows.length} row${mine.rows.length === 1 ? "" : "s"})`), resultTable(mine, ok ? null : diff.extra)),
+            !ok ? h("details", { class: "target", open: tries > 1 },
+              h("summary", {}, `The result you're aiming for (${want.rows.length} row${want.rows.length === 1 ? "" : "s"})`),
+              resultTable(want, diff.missing)) : null),
+          h("details", { class: "steps-toggle" }, h("summary", {}, ok ? "See how your query works, step by step" : "See what your query does, step by step"), stepsPanel(q)));
         note(`SQL "${task.prompt}": \`${q}\` (${ok ? "right" : "wrong"}).`);
-        track.attempt(tid, ok, { concept: task.prompt, detail: `My query was: ${q}` });
+        track.attempt(tid, ok, miss);
       } catch (e) {
-        out.replaceChildren(h("div", { class: "fb bad" }, h("b", {}, "SQL error: "), e.message,
-          h("button", { class: "linkish", onclick: () => tutor.ask(`Task: "${task.prompt}"\nMy query:\n${q}\nError: ${e.message}\nWhat does this mean?`) }, "Ask the tutor")));
+        const tip = sqlErrorTip(e.message);
+        out.replaceChildren(h("div", { class: "fb bad" }, h("b", {}, "SQL error: "), e.message, tip ? h("p", { style: "margin:.35rem 0 0" }, "💡 ", tip) : null,
+          h("button", { class: "linkish", onclick: () => tutor.ask(`Task: "${task.prompt}"\nMy query:\n${q}\nError: ${e.message}\nWhat does this mean and how do I fix it?`) }, "Ask the tutor")));
         note(`SQL "${task.prompt}": error ${e.message}`);
         track.attempt(tid, false, { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` });
       }
@@ -527,12 +543,309 @@ const RENDER = {
       hint ? h("div", {}, h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint"), hint) : null, editor,
       h("div", { class: "row" }, h("button", { class: "btn small", onclick: run }, "Run ▸"), h("span", { class: "muted" }, "Ctrl/⌘ + Enter"), reveal), out);
   })),
+
+  statements: (b) => statementBuilder(b),
+  formulas: (b) => formulaSheet(b.course),
 };
 
-function resultTable({ columns, rows }) {
-  if (!columns.length) return h("p", { class: "muted" }, "Query ran. No rows returned.");
-  return h("div", { class: "scroll" }, h("table", {}, h("thead", {}, h("tr", {}, columns.map((c) => h("th", {}, c)))),
-    h("tbody", {}, rows.slice(0, 200).map((r) => h("tr", {}, r.map((v) => h("td", {}, v === null ? "NULL" : v)))))));
+/* ---------- SQL: explain mistakes, show steps, show data ---------- */
+const rowKey = (r) => r.map(norm).join("\u0000");
+function diffRows(mine, want) {
+  const wantKeys = want.rows.map(rowKey), mineKeys = mine.rows.map(rowKey);
+  const pool = [...wantKeys];
+  const extra = new Set();
+  mineKeys.forEach((k, i) => { const j = pool.indexOf(k); if (j >= 0) pool.splice(j, 1); else extra.add(i); });
+  const pool2 = [...mineKeys];
+  const missing = new Set();
+  wantKeys.forEach((k, i) => { const j = pool2.indexOf(k); if (j >= 0) pool2.splice(j, 1); else missing.add(i); });
+  return { extra, missing };
+}
+
+function diagnoseSql(q, mine, want, task, diff) {
+  const sol = task.solution;
+  const has = (re, t) => re.test(t);
+  const out = [];
+  if (has(/[=!<>]\s*null\b/i, q)) out.push("To check for missing values use IS NULL (or IS NOT NULL). Nothing ever equals NULL, so = NULL finds no rows.");
+  if (has(/"[^"]*"/, q)) out.push("Put text values in single quotes: 'UT', not \"UT\".");
+  if (mine.columns.length !== want.columns.length) {
+    out.push(`Your result has ${mine.columns.length} column${mine.columns.length === 1 ? "" : "s"}; the question needs ${want.columns.length}. Re-read what it asks you to show and fix your SELECT list.`);
+    if (has(/\bselect\s+\*/i, q) && !has(/\bselect\s+\*/i, sol)) out.push("SELECT * shows every column. List only the columns the question asks for.");
+  }
+  if (has(/\bgroup\s+by\b/i, sol) && !has(/\bgroup\s+by\b/i, q)) out.push("The question wants a number for each group (\"for each\", \"per\", \"by\"). That's GROUP BY on the column you're grouping by.");
+  if (has(/\bhaving\b/i, sol) && !has(/\bhaving\b/i, q)) out.push("You need to filter the groups after counting them. Conditions on COUNT/SUM/AVG go in HAVING, after GROUP BY.");
+  if (has(/\bleft\s+join\b/i, sol) && !has(/\bleft\s+join\b/i, q)) out.push("A plain JOIN drops rows that have no match. To keep every row from the first table (or find the ones with no match), use LEFT JOIN.");
+  else if (has(/\bjoin\b/i, sol) && !has(/\bjoin\b/i, q)) out.push("The information you need lives in more than one table. JOIN them on their shared key column.");
+  if (has(/\bwhere\b/i, sol) && !has(/\bwhere\b/i, q)) out.push("The question only wants some rows. Add a WHERE filter.");
+  if (task.ordered && has(/\border\s+by\b/i, sol) && !has(/\border\s+by\b/i, q)) out.push("The order matters here. Add ORDER BY (ASC is smallest first, DESC is biggest first).");
+  if (mine.columns.length === want.columns.length) {
+    if (mine.rows.length > want.rows.length) out.push(`You have ${mine.rows.length - want.rows.length} extra row(s), highlighted in red. Your filter lets too much through: check the condition, AND vs OR, and the comparison (< vs <=).`);
+    else if (mine.rows.length < want.rows.length) out.push(`You're missing ${want.rows.length - mine.rows.length} row(s), highlighted in the result you're aiming for. Your filter is too strict: check spelling and capitalization of text values, AND vs OR, and < vs <=.`);
+    else if (diff.extra.size) out.push("Right number of rows, but some values are different (highlighted). Check which column you picked, any math, and which rows your filter keeps.");
+    else if (!out.length) out.push("Right rows, wrong order. Check your ORDER BY column and ASC vs DESC.");
+  }
+  return out;
+}
+
+function sqlErrorTip(msg) {
+  if (/no such column: (\S+)/i.test(msg)) return `"${msg.match(/no such column: (\S+)/i)[1]}" isn't a column there. Check the exact names in the data sheets. If the column is in another table, you need to JOIN that table.`;
+  if (/no such table/i.test(msg)) return "The tables are named customers, products, orders, and order_items.";
+  if (/ambiguous column/i.test(msg)) return "Both tables have a column with that name. Put the table alias in front, like o.customer_id.";
+  if (/misuse of aggregate/i.test(msg)) return "COUNT, SUM, and AVG can't go in WHERE. Use GROUP BY … HAVING instead.";
+  if (/incomplete input/i.test(msg)) return "The query ends too early. Check for a missing closing quote, parenthesis, or clause.";
+  if (/syntax error/i.test(msg)) return "Check the clause order (SELECT → FROM → WHERE → GROUP BY → HAVING → ORDER BY), commas between column names but not before FROM, and single quotes around text.";
+  return "";
+}
+
+// Splits a simple SELECT into its top-level clauses so each step can be run and shown.
+function sqlClauses(sql) {
+  const q = sql.trim().replace(/;\s*$/, "");
+  if (!/^select\b/i.test(q)) return null;
+  const words = ["from", "where", "group by", "having", "order by", "limit"];
+  const at = {};
+  let depth = 0, quote = null;
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i];
+    if (quote) { if (c === quote) quote = null; continue; }
+    if (c === "'" || c === '"') { quote = c; continue; }
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (depth === 0 && /\s/.test(q[i - 1] || " ")) {
+      for (const w of words) {
+        if (at[w] == null && q.slice(i, i + w.length).toLowerCase() === w && !/\w/.test(q[i + w.length] || "")) {
+          at[w] = i;
+        }
+      }
+    }
+  }
+  if (at.from == null) return null;
+  const order = words.filter((w) => at[w] != null).sort((a, b) => at[a] - at[b]);
+  const part = (w) => { if (at[w] == null) return ""; const next = order[order.indexOf(w) + 1]; return q.slice(at[w] + w.length, next ? at[next] : q.length).trim(); };
+  return { select: q.slice(6, at.from).trim(), from: part("from"), where: part("where"), group: part("group by"), having: part("having"), order: part("order by"), limit: part("limit"), full: q };
+}
+
+function stepsPanel(sql, heading) {
+  const el = h("div", { class: "steps-panel" }, heading ? h("b", {}, heading) : null);
+  const c = sqlClauses(sql);
+  if (!c) { el.append(h("p", { class: "muted" }, "Step-by-step view works on SELECT queries.")); return el; }
+  const steps = [];
+  const joined = /\bjoin\b/i.test(c.from);
+  steps.push({ label: joined ? "FROM + JOIN: line up the tables" : "FROM: start with the whole table", sql: `SELECT * FROM ${c.from}`,
+    note: (n) => joined ? `JOIN put matching rows from both tables side by side: ${n} combined row${n === 1 ? "" : "s"}.` : `The table has ${n} row${n === 1 ? "" : "s"}.` });
+  const base = `FROM ${c.from}${c.where ? ` WHERE ${c.where}` : ""}`;
+  if (c.where) steps.push({ label: `WHERE ${c.where}`, sql: `SELECT * ${base}`, note: (n, prev) => `WHERE kept ${n} of ${prev} rows. Every other row was thrown out.` });
+  if (c.group) {
+    steps.push({ label: `GROUP BY ${c.group}`, sql: `SELECT ${c.group}, COUNT(*) AS rows_in_group ${base} GROUP BY ${c.group}`,
+      note: (n) => `GROUP BY squeezed the rows into ${n} group${n === 1 ? "" : "s"}, one per ${c.group}. Aggregates like COUNT and SUM are calculated inside each group.` });
+    if (c.having) steps.push({ label: `HAVING ${c.having}`, sql: `SELECT ${c.group}, COUNT(*) AS rows_in_group ${base} GROUP BY ${c.group} HAVING ${c.having}`, note: (n, prev) => `HAVING kept ${n} of ${prev} groups.` });
+  }
+  steps.push({ label: `SELECT ${c.select}${c.order ? ` … ORDER BY ${c.order}` : ""}${c.limit ? ` LIMIT ${c.limit}` : ""}`, sql: c.full,
+    note: (n) => [`SELECT kept only the columns you listed.`, c.order ? `ORDER BY sorted the rows by ${c.order}.` : "", c.limit ? `LIMIT kept the first ${c.limit}.` : "", `Final result: ${n} row${n === 1 ? "" : "s"}.`].filter(Boolean).join(" ") });
+  const list = h("ol", { class: "sql-steps" });
+  el.append(list);
+  (async () => {
+    let prev = null;
+    for (const st of steps) {
+      try {
+        const r = await runQuery(st.sql);
+        list.append(h("li", {}, h("code", {}, st.label), h("p", { class: "muted", style: "margin:.2rem 0" }, st.note(r.rows.length, prev)), resultTable({ columns: r.columns, rows: r.rows.slice(0, 6) }),
+          r.rows.length > 6 ? h("p", { class: "muted", style: "margin:.2rem 0;font-size:.82rem" }, `…and ${r.rows.length - 6} more`) : null));
+        prev = r.rows.length;
+      } catch (e) {
+        list.append(h("li", {}, h("code", {}, st.label), h("p", { class: "fb bad" }, `This step fails: ${e.message}`)));
+        break;
+      }
+    }
+  })();
+  return el;
+}
+
+function dataSheets() {
+  const wrap = h("div", { class: "sheets" });
+  getSqlDb().then((d) => {
+    const tables = d.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY rowid")[0].values.map((r) => r[0]);
+    const body = h("div");
+    const tabs = tables.map((t, i) => h("button", { type: "button", "aria-pressed": String(i === 0), onclick: () => show(i) }, t));
+    const show = (i) => {
+      tabs.forEach((b, j) => b.setAttribute("aria-pressed", String(i === j)));
+      const r = d.exec(`SELECT * FROM ${tables[i]}`)[0];
+      body.replaceChildren(resultTable({ columns: r.columns, rows: r.values }));
+    };
+    wrap.append(h("div", { class: "seg", role: "group", "aria-label": "Tables" }, tabs), body);
+    show(0);
+  });
+  return wrap;
+}
+
+function formulaSheet(courseKey) {
+  const rows = FORMULAS[courseKey] || [];
+  return h("section", { class: "block" }, h("h2", {}, courseKey === "sql" ? "SQL formula sheet" : "Accounting formula sheet"),
+    h("p", { class: "muted", style: "margin:0" }, courseKey === "sql" ? "Find what the question is asking for on the left, then use the pattern. Words like “per”, “for each” and “by” almost always mean GROUP BY." : "The formulas and rules you'll use over and over."),
+    h("div", { class: "scroll" }, h("table", { class: "ref formulas" },
+      h("thead", {}, h("tr", {}, h("th", {}, "When you need to…"), h("th", {}, courseKey === "sql" ? "Pattern" : "Formula"), h("th", {}, "Example"))),
+      h("tbody", {}, rows.map(([goal, pattern, ex]) => h("tr", {}, h("td", {}, goal), h("td", {}, h("code", {}, pattern)), h("td", {}, ex ? h("code", {}, ex) : "")))))));
+}
+
+/* ---------- Accounting: build the financial statements ---------- */
+const PLACES = [
+  ["", "Choose where it goes…"],
+  ["rev", "Income statement: Revenue"],
+  ["exp", "Income statement: Expense"],
+  ["re", "Retained earnings: Beginning balance"],
+  ["div", "Retained earnings: Dividends (subtract)"],
+  ["ca", "Balance sheet: Current asset"],
+  ["la", "Balance sheet: Long-term asset"],
+  ["cl", "Balance sheet: Current liability"],
+  ["ll", "Balance sheet: Long-term liability"],
+  ["eq", "Balance sheet: Equity (stock)"],
+];
+const placeOf = (a) => ({ revenue: "rev", expense: "exp", dividends: "div", re: "re", equity: "eq" })[a.type] || (a.type === "asset" ? (a.current ? "ca" : "la") : a.current ? "cl" : "ll");
+const PLACE_WHY = {
+  rev: "Revenues go on the income statement. They're what the company earned this period.",
+  exp: "Expenses go on the income statement. They're costs used up to earn revenue.",
+  re: "Beginning retained earnings starts the statement of retained earnings.",
+  div: "Dividends aren't an expense. They're subtracted on the statement of retained earnings.",
+  ca: "A current asset: cash, or something that will turn into cash or be used up within a year.",
+  la: "A long-term asset: used for more than a year, like equipment or buildings.",
+  cl: "A current liability: due within a year.",
+  ll: "A long-term liability: due more than a year from now.",
+  eq: "Stock the owners bought goes in equity on the balance sheet.",
+};
+const num = (v) => { const n = Number(String(v).replace(/[^\d.-]/g, "")); return String(v).trim() === "" || isNaN(n) ? null : n; };
+
+function statementTotals(accts) {
+  const sum = (p) => accts.filter((a) => placeOf(a) === p).reduce((t, a) => t + a.balance, 0);
+  const ni = sum("rev") - sum("exp");
+  const endRe = sum("re") + ni - sum("div");
+  const ta = sum("ca") + sum("la"), tl = sum("cl") + sum("ll"), te = sum("eq") + endRe;
+  return { rev: sum("rev"), exp: sum("exp"), ni, endRe, ta, tl, te, tle: tl + te };
+}
+
+function statementBuilder(b) {
+  const box = h("section", { class: "block statements" });
+  const draw = (data) => {
+    const picks = new Map();
+    const T = statementTotals(data.accounts);
+    const preview = h("div", { class: "fs-grid" });
+    const totals = {};
+    const carry = {}; // cells that show a total carried to the next statement
+    const totalIds = new Map();
+
+    const line = (name, amt, cls = "") => h("tr", { class: cls }, h("td", {}, name), h("td", { class: "amt" }, amt == null ? "" : money(amt)));
+    const totalInput = (key, label, correct, howTo) => {
+      const inp = h("input", { id: `tot-${key}-${uid()}`, inputmode: "decimal", class: "mono", value: totals[key] ?? "", "aria-label": label, placeholder: "$" });
+      const fb = h("div");
+      const tid = totalIds.get(key) || track.add();
+      totalIds.set(key, tid);
+      let lastChecked = null;
+      const check = (silent) => {
+        const v = num(inp.value);
+        totals[key] = inp.value;
+        if (v == null || (!silent && v === lastChecked)) return;
+        if (!silent) lastChecked = v;
+        const ok = v === correct;
+        const miss = { concept: `${label} for ${data.company}`, detail: `I entered ${money(v)}. How to get it: ${howTo}.` };
+        fb.replaceChildren(feedback(ok, ok ? howTo : `Not ${money(v)}. ${howTo}.`, `On ${data.company}'s statements I got ${label} = ${money(v)}. How do I work it out? Don't just give me the number.`, miss));
+        if (!silent) track.attempt(tid, ok, miss);
+        if (carry[key]) carry[key].textContent = ok ? money(v) : "";
+      };
+      inp.addEventListener("change", () => check());
+      inp.addEventListener("keydown", (e) => e.key === "Enter" && check());
+      if (totals[key]) queueMicrotask(() => check(true)); // restore feedback after a redraw without re-scoring
+      return h("tr", { class: "total" }, h("td", {}, h("label", { for: inp.id }, label), fb), h("td", { class: "amt" }, inp));
+    };
+
+    const renderPreview = () => {
+      const placed = (p) => data.accounts.filter((a) => picks.get(a) === p);
+      const rows = (p) => placed(p).map((a) => line(a.name, a.balance, placeOf(a) === p ? "" : "wrong-line"));
+      const empty = (p) => (placed(p).length ? null : h("tr", {}, h("td", { class: "muted", colspan: 2 }, "(nothing placed yet)")));
+      preview.replaceChildren(
+        h("div", { class: "fs" }, h("h3", {}, data.company), h("p", { class: "fs-sub" }, `Income Statement · ${data.period}`),
+          h("table", {}, h("tbody", {},
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Revenues")), rows("rev"), empty("rev"),
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Expenses")), rows("exp"), empty("exp"),
+            totalInput("ni", "Net income", T.ni, `Net income = total revenues (${money(T.rev)}) − total expenses. Add up the expenses and subtract`)))),
+        h("div", { class: "fs" }, h("h3", {}, data.company), h("p", { class: "fs-sub" }, `Statement of Retained Earnings · ${data.period}`),
+          h("table", {}, h("tbody", {},
+            ...(placed("re").length ? rows("re") : [line("Retained earnings, beginning", null, "muted")]),
+            (() => { const r = line("Add: Net income (from statement 1)", totals.ni && num(totals.ni) === T.ni ? T.ni : null); carry.ni = r.lastChild; return r; })(),
+            rows("div"), empty("div"),
+            totalInput("re", "Retained earnings, ending", T.endRe, "Ending RE = beginning RE + net income − dividends")))),
+        h("div", { class: "fs" }, h("h3", {}, data.company), h("p", { class: "fs-sub" }, `Balance Sheet · end of the ${data.period.replace(/^year ended /i, "year, ")}`),
+          h("table", {}, h("tbody", {},
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Current assets")), rows("ca"), empty("ca"),
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Long-term assets")), rows("la"), empty("la"),
+            totalInput("ta", "Total assets", T.ta, "Total assets = current assets + long-term assets"),
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Current liabilities")), rows("cl"), empty("cl"),
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Long-term liabilities")), rows("ll"), empty("ll"),
+            totalInput("tl", "Total liabilities", T.tl, "Total liabilities = current liabilities + long-term liabilities"),
+            h("tr", { class: "sec" }, h("td", { colspan: 2 }, "Stockholders' equity")), rows("eq"),
+            (() => { const r = line("Retained earnings (ending, from statement 2)", totals.re && num(totals.re) === T.endRe ? T.endRe : null); carry.re = r.lastChild; return r; })(),
+            totalInput("te", "Total equity", T.te, "Total equity = common stock + ending retained earnings"),
+            totalInput("tle", "Total liabilities + equity", T.tle, "Add total liabilities and total equity. It should equal total assets"),
+          ))));
+    };
+
+    const sortRows = data.accounts.map((a) => {
+      const sel = h("select", { id: `pl-${uid()}`, "aria-label": `Where does ${a.name} go?` }, PLACES.map(([v, t]) => h("option", { value: v }, t)));
+      const fb = h("div", { class: "fbslot" });
+      const tid = track.add();
+      sel.addEventListener("change", () => {
+        if (!sel.value) return;
+        picks.set(a, sel.value);
+        const ok = sel.value === placeOf(a);
+        const miss = { concept: `Where ${a.name} goes on the financial statements`, detail: `I put it under "${PLACES.find((p) => p[0] === sel.value)[1]}".` };
+        fb.replaceChildren(feedback(ok, ok ? PLACE_WHY[placeOf(a)] : "Try another spot.", `Why doesn't ${a.name} go under "${PLACES.find((p) => p[0] === sel.value)[1]}"?`, miss));
+        note(`Placed ${a.name} under ${sel.value} (${ok ? "right" : "wrong"}).`);
+        track.attempt(tid, ok, miss);
+        renderPreview();
+      });
+      return h("tr", {}, h("td", {}, a.name, fb), h("td", { class: "amt" }, money(a.balance)), h("td", {}, sel));
+    });
+
+    box.replaceChildren(
+      h("div", { class: "panel-head" }, h("h2", {}, `Build ${data.company}'s statements`),
+        sample ? h("button", { class: "btn quiet small", onclick: () => newCompany(draw) }, "New practice company") : null),
+      h("p", { style: "margin:0" }, h("b", {}, "Step 1. "), "Sort each account from the trial balance. The statements below fill in as you go, and anything in the wrong place shows in red."),
+      h("div", { class: "scroll" }, h("table", { class: "tb" }, h("thead", {}, h("tr", {}, h("th", {}, "Account"), h("th", { class: "amt" }, "Balance"), h("th", {}, "Where does it go?"))), h("tbody", {}, sortRows))),
+      h("p", { style: "margin:0" }, h("b", {}, "Step 2. "), "Work out each total and type it in (press Enter). Do the statements in order: net income feeds retained earnings, and ending retained earnings feeds the balance sheet."),
+      preview,
+      h("p", { class: "muted", style: "margin:0;font-size:.88rem" }, "The balance sheet balances when total assets = total liabilities + equity. If yours doesn't, look for an account in the wrong spot."));
+    renderPreview();
+  };
+  draw(b);
+  return box;
+}
+
+async function newCompany(draw) {
+  const lesson = currentLesson();
+  const prompt = `Create a realistic trial balance for a small fictional business, for a student practicing building an income statement, statement of retained earnings, and balance sheet in an intro financial accounting course (ACCT 2010). Use 14-20 accounts with round-ish numbers: several current assets, 1-2 long-term assets, current and long-term liabilities, Common Stock, beginning Retained Earnings, Dividends, 1-2 revenues, and 4-6 expenses. Pick a different kind of business than a bike rental shop.${lesson ? ` The student is on the lesson "${lesson.title}".` : ""}
+The numbers MUST balance: total assets = total liabilities + common stock + (beginning retained earnings + revenues − expenses − dividends).
+Reply with ONLY JSON: {"company": string, "period": "year ended December 31", "accounts": [{"name": string, "balance": number, "type": "asset"|"liability"|"equity"|"re"|"dividends"|"revenue"|"expense", "current": boolean}]}
+Use "re" only for beginning Retained Earnings and "equity" only for Common Stock. "current" matters only for assets and liabilities.`;
+  try {
+    const data = await sample.json(prompt, { cache: false });
+    const accts = (data?.accounts || []).filter((a) => a?.name && Number(a.balance) > 0 && ["asset", "liability", "equity", "re", "dividends", "revenue", "expense"].includes(a.type))
+      .map((a) => ({ name: String(a.name), balance: Math.round(Number(a.balance)), type: a.type, current: Boolean(a.current) }));
+    if (accts.length < 8) throw { code: "invalid_json" };
+    // Make sure it balances: plug any difference into Cash.
+    const T = statementTotals(accts);
+    const gap = T.tle - T.ta;
+    if (gap) {
+      const cash = accts.find((a) => a.type === "asset" && /cash/i.test(a.name)) || accts.find((a) => a.type === "asset");
+      if (!cash || cash.balance + gap <= 0) throw { code: "invalid_json" };
+      cash.balance += gap;
+    }
+    draw({ company: String(data.company || "Practice Company"), period: String(data.period || "year ended December 31"), accounts: accts });
+  } catch (e) {
+    alertNote(sampleErrorText(e));
+  }
+}
+const alertNote = (t) => document.querySelector(".statements")?.prepend(h("p", { class: "note bad" }, t));
+
+function resultTable({ columns, rows }, mark) {
+  if (!columns.length) return h("p", { class: "muted" }, "No rows returned.");
+  return h("div", { class: "scroll" }, h("table", { class: "result" }, h("thead", {}, h("tr", {}, columns.map((c) => h("th", {}, c)))),
+    h("tbody", {}, rows.slice(0, 200).map((r, i) => h("tr", { class: mark?.has(i) ? "flag" : null }, r.map((v) => h("td", {}, v === null ? "NULL" : v)))))));
 }
 
 function renderLesson(lesson) {
@@ -1205,6 +1518,7 @@ function classView() {
   }, label, sub ? h("small", {}, sub) : null);
 
   const side = h("nav", { class: "side", "aria-label": `${course.title} lessons` },
+    FORMULAS[state.course] ? item("formulas", "📋 Formula sheet", state.course === "sql" ? "patterns for pulling data" : "equations and rules", () => go("class", state.course, "formulas")) : null,
     builtIn.length ? h("span", { class: "eyebrow" }, "Lessons") : null,
     builtIn.map((l) => item(l.id, l.title, null, () => go("class", state.course, l.id))),
     h("span", { class: "eyebrow" }, "From your Canvas"),
@@ -1222,7 +1536,9 @@ function classView() {
   const stage = h("main", { class: "stage" });
   const ws = currentWorksheet();
   const quiz = state.lessonId?.startsWith("quiz-") ? state.deadlines.find((d) => "quiz-" + d.id === state.lessonId) : null;
-  if (ws) stage.append(worksheetView(ws));
+  if (state.lessonId === "formulas") stage.append(h("article", { class: "lesson" }, h("h1", {}, "Formula sheet"), formulaSheet(state.course),
+    state.course === "sql" ? h("section", { class: "block" }, h("h2", {}, "The data"), dataSheets()) : null));
+  else if (ws) stage.append(worksheetView(ws));
   else if (quiz) stage.append(practiceTestView(quiz));
   else if (state.lessonId === "build" || state.lessonId?.startsWith("inbox-") || (!state.lessonId && !builtIn.length)) stage.append(builderView());
   else {

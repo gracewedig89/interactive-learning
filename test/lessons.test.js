@@ -45,3 +45,12 @@ test("sameResult ignores column names and row order unless ordered", () => {
   assert.ok(sameResult({ columns: ["a"], rows: [[1.004]] }, { columns: ["b"], rows: [[1]] }, false));
   assert.ok(!sameResult(a, { columns: ["x", "z"], rows: [[1, 0], [2, 0]] }, false));
 });
+
+test("financial statement practice data balances", () => {
+  for (const lesson of accounting)
+    for (const b of lesson.blocks.filter((b) => b.type === "statements")) {
+      const sum = (t) => b.accounts.filter((a) => a.type === t).reduce((s, a) => s + a.balance, 0);
+      const endRe = sum("re") + sum("revenue") - sum("expense") - sum("dividends");
+      assert.equal(sum("asset"), sum("liability") + sum("equity") + endRe, b.company);
+    }
+});

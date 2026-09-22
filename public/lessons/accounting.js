@@ -233,4 +233,61 @@ export default [
       },
     ],
   },
+  {
+    id: "statements",
+    title: "4. Build the financial statements",
+    blocks: [
+      {
+        type: "objectives",
+        text: "Here you'll take a company's account balances (its trial balance) and build the three statements yourself, in order: the income statement (did it make money?), the statement of retained earnings (how much profit it kept), and the balance sheet (what it owns and owes). Each statement feeds the next: net income flows into retained earnings, and ending retained earnings flows into the balance sheet, which must balance.",
+      },
+      {
+        type: "text",
+        html: `<table class="ref">
+<thead><tr><th>Statement</th><th>What goes on it</th><th>Bottom line</th></tr></thead>
+<tbody>
+<tr><td>1. Income statement</td><td>Revenues and expenses</td><td>Net income = Revenues − Expenses</td></tr>
+<tr><td>2. Retained earnings</td><td>Beginning RE, net income, dividends</td><td>Ending RE = Beginning RE + Net income − Dividends</td></tr>
+<tr><td>3. Balance sheet</td><td>Assets, liabilities, common stock, ending RE</td><td>Total assets = Total liabilities + Total equity</td></tr>
+</tbody></table>
+<p>Dividends are <b>not</b> an expense, so they skip the income statement and reduce retained earnings instead.</p>`,
+      },
+      {
+        type: "statements",
+        company: "Red Rock Bike Rentals",
+        period: "year ended December 31",
+        accounts: [
+          { name: "Cash", balance: 26200, type: "asset", current: true },
+          { name: "Accounts Receivable", balance: 3200, type: "asset", current: true },
+          { name: "Supplies", balance: 1100, type: "asset", current: true },
+          { name: "Prepaid Insurance", balance: 2400, type: "asset", current: true },
+          { name: "Equipment", balance: 42000, type: "asset", current: false },
+          { name: "Accounts Payable", balance: 4300, type: "liability", current: true },
+          { name: "Unearned Revenue", balance: 1800, type: "liability", current: true },
+          { name: "Notes Payable (due in 5 years)", balance: 20000, type: "liability", current: false },
+          { name: "Common Stock", balance: 25000, type: "equity" },
+          { name: "Retained Earnings (beginning of year)", balance: 9000, type: "re" },
+          { name: "Dividends", balance: 3000, type: "dividends" },
+          { name: "Rental Revenue", balance: 61500, type: "revenue" },
+          { name: "Service Revenue", balance: 4200, type: "revenue" },
+          { name: "Wages Expense", balance: 28700, type: "expense" },
+          { name: "Rent Expense", balance: 12000, type: "expense" },
+          { name: "Utilities Expense", balance: 3100, type: "expense" },
+          { name: "Insurance Expense", balance: 2400, type: "expense" },
+          { name: "Supplies Expense", balance: 1700, type: "expense" },
+        ],
+      },
+      {
+        type: "definitions",
+        items: [
+          ["Trial balance", "A list of every account and its balance; total debits should equal total credits."],
+          ["Income statement", "Shows revenues and expenses for a period of time and the resulting net income or loss."],
+          ["Statement of retained earnings", "Shows how retained earnings changed: beginning balance + net income − dividends."],
+          ["Balance sheet", "Shows assets, liabilities, and equity at one point in time. Must balance."],
+          ["Current asset / liability", "Expected to be used up, collected, or paid within one year."],
+          ["Long-term (noncurrent)", "Lasts or is due more than a year out, like equipment or a 5-year note."],
+        ],
+      },
+    ],
+  },
 ];
