@@ -259,6 +259,16 @@ table.ref td:first-child { font-weight: 650; }
 .chip.fit-strong { background: var(--good-soft); color: var(--good); }
 .chip.fit-possible { background: var(--warn-soft); color: var(--warn); }
 .chip.fit-unlikely { background: var(--sunken); color: var(--ink-soft); }
+.schema-dock { position: sticky; top: var(--topbar-h, 56px); z-index: 5; max-width: 780px; margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); padding: .5rem .8rem; box-shadow: 0 6px 16px rgb(0 0 0 / .08); }
+.dock-head { display: flex; justify-content: space-between; align-items: center; font-size: .9rem; }
+.dock-body { display: grid; gap: .3rem; margin-top: .35rem; max-height: 40vh; overflow-y: auto; }
+.dock-row { display: flex; gap: .4rem; align-items: baseline; flex-wrap: wrap; font-family: var(--mono); font-size: .8rem; }
+.dock-row .cols { display: flex; flex-wrap: wrap; gap: .25rem; }
+.tname, .cname { font-family: var(--mono); font-size: .8rem; border-radius: 5px; padding: .08rem .4rem; cursor: pointer; }
+.tname { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); font-weight: 700; }
+.cname { background: var(--sunken); color: var(--ink); border: 1px solid transparent; }
+.cname:hover, .tname:hover { border-color: var(--accent); }
+.dock-tip { margin: .2rem 0 0; font-size: .75rem; font-family: var(--body); }
 .builder { display: grid; gap: .75rem; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: none; padding: .35rem .8rem; font-weight: 600; font-size: .9rem; }

@@ -679,6 +679,45 @@ function stepsPanel(sql, heading) {
   return el;
 }
 
+// Pinned list of tables and columns that stays in view while scrolling through SQL questions.
+// Tapping a name types it into the query box you were last in.
+let lastEditor = null;
+document.addEventListener("focusin", (e) => { if (e.target.matches?.("textarea.code")) lastEditor = e.target; });
+function insertIntoEditor(text) {
+  const ed = lastEditor && document.contains(lastEditor) ? lastEditor : document.querySelector("textarea.code");
+  if (!ed) return;
+  const a = ed.selectionStart ?? ed.value.length, b = ed.selectionEnd ?? a;
+  const before = ed.value.slice(0, a), after = ed.value.slice(b);
+  const pad = before && !/[\s(,.]$/.test(before) ? " " : "";
+  ed.value = before + pad + text + after;
+  const pos = (before + pad + text).length;
+  ed.focus();
+  ed.setSelectionRange(pos, pos);
+}
+let dockOpen = null;
+function schemaDock() {
+  const body = h("div", { class: "dock-body" }, h("span", { class: "muted" }, "Loading tables…"));
+  const narrow = matchMedia("(max-width: 760px)").matches;
+  const open = dockOpen ?? !narrow;
+  const toggle = h("button", { class: "linkish", "aria-expanded": String(open), onclick: () => { dockOpen = body.hidden; body.hidden = !body.hidden; toggle.setAttribute("aria-expanded", String(!body.hidden)); toggle.textContent = body.hidden ? "Show" : "Hide"; } }, open ? "Hide" : "Show");
+  body.hidden = !open;
+  getSqlDb().then((d) => {
+    const tables = d.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY rowid")[0].values.map((r) => r[0]);
+    body.replaceChildren(...tables.map((t) => {
+      const cols = d.exec(`PRAGMA table_info(${t})`)[0].values;
+      const fks = d.exec(`PRAGMA foreign_key_list(${t})`)[0]?.values || [];
+      return h("div", { class: "dock-row" },
+        h("button", { class: "tname", title: `Insert ${t}`, onclick: () => insertIntoEditor(t) }, t),
+        h("span", { class: "cols" }, cols.map((c) => {
+          const fk = fks.find((f) => f[3] === c[1]);
+          return h("button", { class: "cname", title: fk ? `${c[1]} links to ${fk[2]}` : `Insert ${c[1]}`, onclick: () => insertIntoEditor(c[1]) }, c[1], c[5] ? " 🔑" : "", fk ? ` → ${fk[2]}` : "");
+        })));
+    }), h("p", { class: "muted dock-tip" }, "Tap a name to type it into your query. 🔑 = primary key, → = links to another table."));
+  });
+  return h("div", { class: "schema-dock", role: "region", "aria-label": "Practice database tables" },
+    h("div", { class: "dock-head" }, h("b", {}, "🗂️ Tables"), toggle), body);
+}
+
 function dataSheets() {
   const wrap = h("div", { class: "sheets" });
   getSqlDb().then((d) => {
@@ -1766,6 +1805,7 @@ function render() {
   document.body.classList.remove("tutor-open");
   document.body.querySelector(".fab")?.remove();
   app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : classView());
+  document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar")?.offsetHeight || 56}px`);
   if (state.view === "scholarships" && state.lessonId) document.getElementById("sch-" + state.lessonId)?.scrollIntoView({ block: "start" });
 }
 
@@ -1927,6 +1967,7 @@ function classView() {
     } else stage.append(builderView());
   }
 
+  if (state.course === "sql" && !stage.querySelector("#b-title")) stage.prepend(schemaDock());
   const view = h("div", { class: "classview" }, side, stage, tutor.mount());
   document.body.append(h("button", { class: "btn fab", onclick: () => { document.body.classList.add("tutor-open"); tutor.input.focus(); } }, "Ask the tutor"));
   tutor.draw();
