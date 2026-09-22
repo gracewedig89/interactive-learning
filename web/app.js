@@ -1387,8 +1387,8 @@ function statsPanel() {
 // deadlines, and helps write answers from the student's own story. The student submits.
 const SCHOLARSHIP_PROMPT = `I'm a Utah Tech University student. Please look through my scholarship options. Only read. Don't click Apply, Submit, Save, or Accept, don't fill in any forms, and don't change anything.
 
-1. Open Utah Tech's scholarship portal. Start from https://utahtech.edu and search for "scholarships", or use the Scholarships link in myUT or Canvas. I'm already logged in.
-2. Look at my recommended or eligible opportunities first, then other open ones. Include outside scholarships the school lists if they look like a fit for a college student in Utah.
+1. Open Utah Tech's scholarship portal, Scholarship Universe: https://utahtech.scholarshipuniverse.com/student/dashboard (I'm already logged in). Look at my matched scholarships and any other open opportunities there.
+2. Start with the scholarships it says I match or am eligible for, then other open ones. Include outside scholarships the school lists if they look like a fit for a college student in Utah.
 3. For each scholarship with a deadline in the next 90 days, collect: its name, award amount, deadline, link, who is eligible (major, year, GPA, residency, need, etc.), what it requires (essays, letters, transcripts), every question or essay prompt word for word with any word limit, and whether I've already started or submitted it.
 
 When you're finished, reply with ONLY one JSON code block in exactly this shape:
@@ -1499,7 +1499,7 @@ function scholarshipsView() {
     h("div", { class: "split even" },
       h("section", { class: "panel" }, h("h2", {}, "1. Find scholarships"),
         h("ol", { class: "steps" }, h("li", {}, "Click ", h("b", {}, "Copy the scholarship prompt"), "."),
-          h("li", {}, "In Chrome, open the Claude extension, paste it, and send. Claude reads the scholarship portal. It won't apply or submit anything."),
+          h("li", {}, "In Chrome, open ", h("a", { href: "https://utahtech.scholarshipuniverse.com/student/dashboard", target: "_blank", rel: "noopener" }, "Scholarship Universe"), " (logged in), open the Claude extension, paste the prompt, and send. Claude reads your matches. It won't apply or submit anything."),
           h("li", {}, "Paste its reply here and click Import. Do this every couple of weeks.")),
         h("div", { class: "row" }, copy), pbox, h("label", { for: "sch-pack" }, "Claude in Chrome's reply", box),
         h("div", { class: "row" }, h("button", { class: "btn", onclick: () => {
@@ -1516,16 +1516,30 @@ function scholarshipsView() {
 
 function profilePanel(filled) {
   const body = h("div", { class: "profile-fields", hidden: filled >= 5 });
+  const saved = h("span", { class: "save-state", role: "status" }, filled ? "✓ Saved to your account" : "");
+  const count = h("span", { class: "muted" }, `${filled} of ${PROFILE_FIELDS.length} filled`);
+  let timer;
+  const saveNow = async () => {
+    clearTimeout(timer);
+    body.querySelectorAll("input, textarea").forEach((el) => (state.profile[el.id.slice(3)] = el.value.trim()));
+    saved.textContent = "Saving…";
+    await saveProfile();
+    saved.textContent = `✓ Saved ${new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+    count.textContent = `${PROFILE_FIELDS.filter(([k]) => state.profile[k]).length} of ${PROFILE_FIELDS.length} filled`;
+  };
   for (const [k, label, ph] of PROFILE_FIELDS) {
     const id = "pf-" + k;
     const input = ["gpa", "year", "from", "major"].includes(k) ? h("input", { id, value: state.profile[k] || "", placeholder: ph }) : h("textarea", { id, rows: 2, placeholder: ph }, state.profile[k] || "");
-    input.addEventListener("change", () => { state.profile[k] = input.value.trim(); saveProfile(); });
+    // Saves on its own a moment after you stop typing, and again when you leave the box.
+    input.addEventListener("input", () => { saved.textContent = "Unsaved changes…"; clearTimeout(timer); timer = setTimeout(saveNow, 1200); });
+    input.addEventListener("change", saveNow);
     body.append(h("label", { for: id }, label, input));
   }
+  body.append(h("div", { class: "row" }, h("button", { class: "btn small", onclick: saveNow }, "Save"), saved));
   return h("section", { class: "panel" },
-    h("div", { class: "panel-head" }, h("h2", {}, "About you"), h("span", { class: "muted" }, `${filled} of ${PROFILE_FIELDS.length} filled`)),
-    h("p", { class: "muted", style: "margin:0" }, "Fill this in once. It's how Claude judges your fit and drafts answers that are true to you. It's saved privately to your account."),
-    body.hidden ? h("button", { class: "btn quiet small", onclick: (e) => { body.hidden = false; e.currentTarget.remove(); } }, "Edit my profile") : null,
+    h("div", { class: "panel-head" }, h("h2", {}, "About you"), count),
+    h("p", { class: "muted", style: "margin:0" }, "Fill this in once. It's how Claude judges your fit and drafts answers that are true to you. It saves by itself as you type, privately to your account."),
+    body.hidden ? h("div", { class: "row" }, h("button", { class: "btn quiet small", onclick: (e) => { body.hidden = false; e.currentTarget.parentElement.remove(); } }, "Edit my profile"), saved) : null,
     body);
 }
 

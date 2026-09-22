@@ -254,6 +254,7 @@ table.ref td:first-child { font-weight: 650; }
 .sch-q { display: grid; gap: .45rem; padding: .8rem; background: var(--ground); border: 1px solid var(--rule); border-radius: 8px; }
 .interview { display: grid; gap: .5rem; }
 .interview:empty { display: none; }
+.save-state { font-size: .85rem; font-weight: 600; color: var(--good); }
 .profile-fields { display: grid; gap: .6rem; }
 .chip.fit-strong { background: var(--good-soft); color: var(--good); }
 .chip.fit-possible { background: var(--warn-soft); color: var(--warn); }
