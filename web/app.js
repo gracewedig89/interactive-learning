@@ -82,22 +82,70 @@ const state = {
 async function loadState() {
   await ready;
   const [d, l, p] = await Promise.all([store.get("deadlines"), store.get("lessons"), store.get("progress")]);
-  state.progress = p?.lessons || {};
+  mergeProgress(state.progress, p?.lessons); // merge in place: open lessons keep their references
   state.inbox = (await store.get("inbox"))?.items || [];
   state.worksheets = (await store.get("worksheets"))?.items || [];
   state.scholarships = (await store.get("scholarships"))?.items || [];
   state.profile = (await store.get("profile")) || {};
-  state.stats = (await store.get("stats")) || { days: {} };
-  state.stats.days ||= {};
+  mergeStats(state.stats, await store.get("stats"));
   state.deadlines = (d?.items || []).map(normalizeDeadline);
   state.deadlinesUpdatedAt = d?.updatedAt || null;
-  state.lessons = l?.items || [];
+  mergeLessons(l);
   state.chats = local.get("chats") || {};
 }
 const saveDeadlines = () => { state.deadlinesUpdatedAt = new Date().toISOString(); return store.set("deadlines", { items: state.deadlines, updatedAt: state.deadlinesUpdatedAt }); };
-let progressTimer;
-const saveProgress = () => { clearTimeout(progressTimer); progressTimer = setTimeout(() => store.set("progress", { lessons: state.progress }), 600); };
-let statsTimer;
+/* Saving without clobbering: Study Hub may be open in two places at once (the Claude app and
+   a browser tab, or phone and computer). Each save first folds in what the other copy saved,
+   so finishing a lesson in one place can't be erased by an older copy somewhere else. */
+function mergeProgress(into, other = {}) {
+  for (const [k, r] of Object.entries(other || {})) {
+    if (!r) continue;
+    const l = (into[k] ||= {});
+    const done = Boolean(l.done || r.done);
+    const completedAt = l.completedAt || r.completedAt;
+    const solved = Math.max(l.solved || 0, r.solved || 0);
+    const total = Math.max(l.total || 0, r.total || 0);
+    if ((r.updatedAt || "") > (l.updatedAt || "")) Object.assign(l, r); // newer copy wins for the mistake list and practice set
+    Object.assign(l, { done, completedAt, solved, total });
+    if (!l.done) delete l.done;
+    if (!l.completedAt) delete l.completedAt;
+  }
+  return into;
+}
+function mergeStats(into, other) {
+  into.days ||= {};
+  for (const [day, courses] of Object.entries(other?.days || {}))
+    for (const [c, rec] of Object.entries(courses || {})) {
+      const mine = ((into.days[day] ||= {})[c] ||= {});
+      for (const [f, v] of Object.entries(rec || {})) mine[f] = Math.max(mine[f] || 0, Number(v) || 0);
+    }
+  return into;
+}
+let deletedLessons = [];
+function mergeLessons(remote) {
+  deletedLessons = [...new Set([...deletedLessons, ...(remote?.deleted || [])])];
+  const have = new Set(state.lessons.map((x) => x.id));
+  for (const x of remote?.items || []) if (!have.has(x.id)) state.lessons.push(x);
+  state.lessons = state.lessons.filter((x) => !deletedLessons.includes(x.id));
+}
+
+let progressTimer, progressPending = false;
+async function flushProgress() {
+  clearTimeout(progressTimer);
+  if (!progressPending) return;
+  progressPending = false;
+  if (db) mergeProgress(state.progress, (await store.get("progress"))?.lessons);
+  await store.set("progress", { lessons: state.progress });
+}
+const saveProgress = () => { progressPending = true; clearTimeout(progressTimer); progressTimer = setTimeout(flushProgress, 600); };
+let statsTimer, statsPending = false;
+async function flushStats() {
+  clearTimeout(statsTimer);
+  if (!statsPending) return;
+  statsPending = false;
+  if (db) mergeStats(state.stats, await store.get("stats"));
+  await store.set("stats", state.stats);
+}
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function bumpStat(courseKey, add) {
   if (!courseKey) return;
@@ -105,7 +153,8 @@ function bumpStat(courseKey, add) {
   const rec = (day[courseKey] ||= {});
   for (const [k, v] of Object.entries(add)) rec[k] = (rec[k] || 0) + v;
   clearTimeout(statsTimer);
-  statsTimer = setTimeout(() => store.set("stats", state.stats), 1500);
+  statsPending = true;
+  statsTimer = setTimeout(flushStats, 1500);
 }
 // Count study time only while a class page is open, visible, and being used.
 let lastActive = 0;
@@ -116,7 +165,14 @@ setInterval(() => {
 let wsTimer;
 const saveWorksheets = () => { clearTimeout(wsTimer); wsTimer = setTimeout(() => store.set("worksheets", { items: state.worksheets }), 500); };
 const saveInbox = () => store.set("inbox", { items: state.inbox });
-const saveLessons = () => store.set("lessons", { items: state.lessons });
+async function saveLessons() {
+  if (db) mergeLessons(await store.get("lessons"));
+  return store.set("lessons", { items: state.lessons, deleted: deletedLessons.slice(-200) });
+}
+// Don't lose a save that was waiting on its timer when the page is closed or hidden.
+const flushAll = () => { flushProgress(); flushStats(); };
+addEventListener("pagehide", flushAll);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushAll(); });
 const saveChats = () => local.set("chats", Object.fromEntries(Object.entries(state.chats).map(([k, v]) => [k, v.slice(-30)])));
 
 /* ---------- Canvas calendar (.ics) import ---------- */
@@ -370,6 +426,7 @@ function newTracker(lesson) {
     key, saved, count: 0, solved: new Set(), first: new Map(), listeners: [],
     add() { return "i" + this.count++; },
     attempt(id, ok, miss) {
+      saved.updatedAt = new Date().toISOString();
       const isFirst = !this.first.has(id);
       bumpStat(state.course, { q: 1, right: ok ? 1 : 0, first: isFirst ? 1 : 0, firstRight: isFirst && ok ? 1 : 0 });
       if (isFirst) this.first.set(id, ok);
@@ -387,6 +444,7 @@ function newTracker(lesson) {
     complete(auto) {
       if (!saved.done) bumpStat(state.course, { done: 1 });
       saved.done = true;
+      saved.updatedAt = new Date().toISOString();
       saved.completedAt = new Date().toISOString();
       note(`Finished the lesson${auto ? " (every question answered correctly)" : ""}.`);
       saveProgress();
@@ -935,7 +993,7 @@ function progressBlock() {
       h("div", { class: "row" },
         s.missed.length && sample ? h("button", { class: "btn", onclick: () => practice.make(s.missed.slice(-6)) }, `Practice what I missed (${Math.min(s.missed.length, 6)})`) : null,
         !s.done ? h("button", { class: "btn quiet", onclick: () => track.complete(false) }, "Mark lesson complete") : null,
-        s.missed.length ? h("button", { class: "linkish", onclick: () => { s.missed = []; saveProgress(); draw(); } }, "Clear list") : null));
+        s.missed.length ? h("button", { class: "linkish", onclick: () => { s.missed = []; s.updatedAt = new Date().toISOString(); saveProgress(); draw(); } }, "Clear list") : null));
   };
   track.listeners.push(draw);
   draw();
@@ -974,6 +1032,7 @@ const practice = {
       const set = await sample.json(prompt, { signal: ctl.signal, cache: false });
       if (!set?.quiz && !set?.debitCredit && !set?.sqlExercises) throw { code: "invalid_json" };
       track.saved.practice = set;
+      track.saved.updatedAt = new Date().toISOString();
       bumpStat(state.course, { practice: 1 });
       saveProgress();
       this.show(set, true);
@@ -1963,7 +2022,7 @@ function classView() {
       stage.append(renderLesson(lesson));
       const g = state.lessons.find((l) => l.id === state.lessonId);
       if (g) stage.querySelector(".lesson").append(h("p", { class: "muted", style: "font-size:.88rem" }, `Built from “${g.source}”. `,
-        h("button", { class: "linkish", onclick: () => { state.lessons = state.lessons.filter((x) => x.id !== g.id); saveLessons(); go("class", state.course, "build"); } }, "Delete this lesson")));
+        h("button", { class: "linkish", onclick: () => { deletedLessons.push(g.id); state.lessons = state.lessons.filter((x) => x.id !== g.id); saveLessons(); go("class", state.course, "build"); } }, "Delete this lesson")));
     } else stage.append(builderView());
   }
 
