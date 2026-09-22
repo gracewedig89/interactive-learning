@@ -24,6 +24,7 @@ const COURSES = [
   { key: "accounting", title: "Accounting", match: /acc(oun)?t/i, tutor: "an accounting tutor for an introductory financial accounting college course" },
   { key: "sql", title: "SQL", match: /sql|database|\bdb\b|data management|information systems|\b(ISA|IT|CS|IS|CIS|DBA|MIS)[\s-]?\d{4}/i, tutor: "a SQL and database tutor for ISA 2050 Management Information Systems, a college MIS course" },
   { key: "language-arts", title: "Language Arts 3010", match: /3010|language arts|professional writing|\bengl\b/i, tutor: "a writing tutor for ENGL 3010 Professional Writing and Business Ethics, covering professional and business writing, audience and purpose, document design, and ethical reasoning in business" },
+  { key: "biology", title: "Biology 1010", match: /\bbiol|biology/i, tutor: "a biology tutor for BIOL 1010 General Biology, an introductory life-science college course" },
 ];
 const courseOf = (key) => COURSES.find((c) => c.key === key);
 const guessCourse = (text) => COURSES.find((c) => c.match.test(text))?.key || null;
@@ -72,6 +73,7 @@ const state = {
   builder: null,     // prefill for the lesson builder
   progress: {},      // "course:lessonId" -> completion + missed concepts
   worksheets: [],    // interactive worksheets: {id, courseKey, title, assignment, instructions, sections, answers}
+  stats: { days: {} }, // "YYYY-MM-DD" -> courseKey -> {q, right, first, firstRight, secs, done, practice}
   inbox: [],         // readings brought in from Claude in Chrome, not built into lessons yet: {id, courseKey, title, text, module}
 };
 
@@ -81,6 +83,8 @@ async function loadState() {
   state.progress = p?.lessons || {};
   state.inbox = (await store.get("inbox"))?.items || [];
   state.worksheets = (await store.get("worksheets"))?.items || [];
+  state.stats = (await store.get("stats")) || { days: {} };
+  state.stats.days ||= {};
   state.deadlines = d?.items || [];
   state.lessons = l?.items || [];
   state.chats = local.get("chats") || {};
@@ -88,6 +92,22 @@ async function loadState() {
 const saveDeadlines = () => store.set("deadlines", { items: state.deadlines, updatedAt: new Date().toISOString() });
 let progressTimer;
 const saveProgress = () => { clearTimeout(progressTimer); progressTimer = setTimeout(() => store.set("progress", { lessons: state.progress }), 600); };
+let statsTimer;
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function bumpStat(courseKey, add) {
+  if (!courseKey) return;
+  const day = (state.stats.days[dayKey()] ||= {});
+  const rec = (day[courseKey] ||= {});
+  for (const [k, v] of Object.entries(add)) rec[k] = (rec[k] || 0) + v;
+  clearTimeout(statsTimer);
+  statsTimer = setTimeout(() => store.set("stats", state.stats), 1500);
+}
+// Count study time only while a class page is open, visible, and being used.
+let lastActive = 0;
+["pointerdown", "keydown", "scroll", "input"].forEach((ev) => addEventListener(ev, () => (lastActive = Date.now()), { passive: true, capture: true }));
+setInterval(() => {
+  if (state.view === "class" && document.visibilityState === "visible" && Date.now() - lastActive < 120000) bumpStat(state.course, { secs: 15 });
+}, 15000);
 let wsTimer;
 const saveWorksheets = () => { clearTimeout(wsTimer); wsTimer = setTimeout(() => store.set("worksheets", { items: state.worksheets }), 500); };
 const saveInbox = () => store.set("inbox", { items: state.inbox });
@@ -155,11 +175,12 @@ function importIcs(text) {
 // JSON "pack"; the student pastes it here. No password or token ever reaches this page.
 const CHROME_PROMPT = `I'm logged into Utah Tech Canvas (https://utahtech.instructure.com). Please gather what I need to study. Only read. Don't submit, post, or change anything.
 
-My classes: ACCT 2010 Principles of Accounting I, ISA 2050 Management Information Systems (the SQL/database part matters most), and ENGL 3010 Professional Writing and Business Ethics.
+My classes: ACCT 2010 Principles of Accounting I, ISA 2050 Management Information Systems (the SQL/database part matters most), ENGL 3010 Professional Writing and Business Ethics, and BIOL 1010 General Biology.
 
 For each class:
 1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed). Also check the Announcements from the last 2 weeks for readings or links my teacher wants me to look at.
 2. Open every reading, page, PDF, and outside link (websites, articles, videos with descriptions or transcripts) in those modules and announcements. For each one, write detailed study notes that keep all key concepts, rules, definitions, formulas, and worked examples. Up to about 800 words each, written so someone could learn from them without the original.
+   McGraw Hill Connect: ACCT 2010's textbook lives in McGraw Hill Connect (SmartBook and the eBook), opened from links in Canvas. Open the Connect link for the current chapter in a new tab. If it loads, open the eBook (or the SmartBook reading) for the assigned chapters and write notes organized by learning objective, with worked examples. Only read the textbook. Don't answer, practice, or submit any SmartBook, homework, or quiz question, and don't start anything timed. If Connect won't open, add one reading titled "McGraw Hill Connect: couldn't open" whose notes list the assigned chapters and sections, so I know what to upload myself.
 3. Open Assignments and list everything due in the next 14 days, with the full instructions.
 4. If an assignment comes with a worksheet, template, or required layout (usually a PDF or Word file, like a form to fill in or a journal-entry table), describe its layout as fields I need to fill in. Keep the questions and prompts exactly as written. Do NOT fill in any answers.
 5. For quizzes and exams due in the next 14 days, read ONLY the quiz's front page (the part shown BEFORE the "Take the Quiz" button): its instructions, topics or chapters covered, number of questions, time limit, and attempts. Never click "Take the Quiz", "Start", or "Resume", and never open quiz questions. Also include any study guide or practice quiz the teacher posted as a reading.
@@ -170,7 +191,7 @@ When you're finished, reply with ONLY one JSON code block in exactly this shape:
   "courses": [
     {
       "course": "course name and code as shown in Canvas",
-      "readings": [{ "module": "module name", "title": "title", "kind": "page" | "pdf" | "link", "url": "where it lives", "notes": "your detailed study notes" }],
+      "readings": [{ "module": "module name", "title": "title", "kind": "page" | "pdf" | "link" | "ebook", "url": "where it lives", "notes": "your detailed study notes" }],
       "assignments": [{ "title": "...", "due": "ISO 8601 date with time zone offset, like 2026-09-24T23:59:00-06:00", "instructions": "full instructions", "url": "link to it in Canvas" }],
       "worksheets": [{ "assignment": "title of the assignment it belongs to", "title": "worksheet title", "instructions": "instructions printed on it", "sections": [{ "heading": "section heading", "fields": [{ "label": "the exact question or blank", "type": "short" | "paragraph" | "number" | "journal", "rows": 4 }] }] }],
       "quizzes": [{ "title": "...", "due": "ISO 8601 with offset", "covers": "topics or chapters listed on the quiz page", "details": "instructions, number of questions, time limit, attempts", "url": "link" }]
@@ -329,7 +350,9 @@ function newTracker(lesson) {
     key, saved, count: 0, solved: new Set(), first: new Map(), listeners: [],
     add() { return "i" + this.count++; },
     attempt(id, ok, miss) {
-      if (!this.first.has(id)) this.first.set(id, ok);
+      const isFirst = !this.first.has(id);
+      bumpStat(state.course, { q: 1, right: ok ? 1 : 0, first: isFirst ? 1 : 0, firstRight: isFirst && ok ? 1 : 0 });
+      if (isFirst) this.first.set(id, ok);
       if (!ok && miss && !saved.missed.some((m) => m.concept === miss.concept)) {
         saved.missed = [...saved.missed, miss].slice(-20);
       }
@@ -342,6 +365,7 @@ function newTracker(lesson) {
       this.listeners.forEach((f) => f());
     },
     complete(auto) {
+      if (!saved.done) bumpStat(state.course, { done: 1 });
       saved.done = true;
       saved.completedAt = new Date().toISOString();
       note(`Finished the lesson${auto ? " (every question answered correctly)" : ""}.`);
@@ -578,6 +602,7 @@ const practice = {
       const set = await sample.json(prompt, { signal: ctl.signal, cache: false });
       if (!set?.quiz && !set?.debitCredit && !set?.sqlExercises) throw { code: "invalid_json" };
       track.saved.practice = set;
+      bumpStat(state.course, { practice: 1 });
       saveProgress();
       this.show(set, true);
     } catch (e) {
@@ -920,6 +945,111 @@ function practiceTestView(d) {
   return stage;
 }
 
+/* ---------- learning stats ---------- */
+function statsFor(from, to, courseKey) {
+  const t = { q: 0, right: 0, first: 0, firstRight: 0, secs: 0, done: 0, practice: 0 };
+  for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
+    const day = state.stats.days[dayKey(d)] || {};
+    for (const [k, rec] of Object.entries(day)) {
+      if (courseKey && k !== courseKey) continue;
+      for (const f in t) t[f] += rec[f] || 0;
+    }
+  }
+  return t;
+}
+const startOfDay = (offset = 0) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + offset); return d; };
+const pct = (t) => (t.first ? Math.round((t.firstRight / t.first) * 100) : null);
+const fmtTime = (secs) => (secs < 3600 ? `${Math.round(secs / 60)}m` : `${Math.floor(secs / 3600)}h ${Math.round((secs % 3600) / 60)}m`);
+
+function delta(now, before, unit, fmt = (v) => v) {
+  if (before == null || now == null) return h("span", { class: "delta flat" }, "no data last week");
+  const d = now - before;
+  if (!d) return h("span", { class: "delta flat" }, "same as last week");
+  return h("span", { class: `delta ${d > 0 ? "up" : "down"}` }, `${d > 0 ? "▲" : "▼"} ${fmt(Math.abs(d))}${unit} vs last week`);
+}
+
+function streak() {
+  let n = 0;
+  const d = startOfDay();
+  if (!state.stats.days[dayKey(d)]) d.setDate(d.getDate() - 1); // today not started yet
+  while (Object.values(state.stats.days[dayKey(d)] || {}).some((r) => r.q || r.secs >= 60)) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+function statsPanel() {
+  const now = new Date(Date.now() + 1);
+  const wk = statsFor(startOfDay(-6), now), prev = statsFor(startOfDay(-13), startOfDay(-6));
+  const hasAny = Object.keys(state.stats.days).length > 0;
+  const tile = (label, value, d) => h("div", { class: "tile" }, h("span", { class: "tile-label" }, label), h("span", { class: "tile-value" }, value), d);
+  const s = streak();
+
+  // Minutes per day, last 14 days
+  const days = Array.from({ length: 14 }, (_, i) => { const d = startOfDay(i - 13); return { d, secs: statsFor(d, startOfDay(i - 12)).secs, q: statsFor(d, startOfDay(i - 12)).q }; });
+  const max = Math.max(30 * 60, ...days.map((x) => x.secs));
+  const niceMax = Math.ceil(max / 60 / 15) * 15; // minutes, rounded to 15
+  const Wd = 560, Ht = 150, padL = 34, padB = 22, padT = 8, bw = (Wd - padL) / 14;
+  const y = (min) => padT + (Ht - padT - padB) * (1 - min / niceMax);
+  const tip = h("div", { class: "tip", hidden: true, role: "status" });
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${Wd} ${Ht}`);
+  svg.setAttribute("class", "chart");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `Minutes studied per day, last 14 days. Total ${fmtTime(days.reduce((t, x) => t + x.secs, 0))}.`);
+  const el = (tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const k in attrs) n.setAttribute(k, attrs[k]); svg.append(n); return n; };
+  for (const m of [0, niceMax / 3, (niceMax * 2) / 3, niceMax]) {
+    el("line", { x1: padL, x2: Wd, y1: y(m), y2: y(m), class: m ? "grid" : "axis" });
+    const t = el("text", { x: padL - 6, y: y(m) + 4, class: "tick", "text-anchor": "end" }); t.textContent = Math.round(m);
+  }
+  days.forEach((x, i) => {
+    const min = x.secs / 60;
+    const bx = padL + i * bw + 3, w = bw - 6, top = y(min), base = y(0);
+    if (min > 0) {
+      const r = Math.min(4, w / 2, base - top);
+      el("path", { class: "bar", d: `M${bx},${base} V${top + r} Q${bx},${top} ${bx + r},${top} H${bx + w - r} Q${bx + w},${top} ${bx + w},${top + r} V${base} Z` });
+    }
+    if (i % 2 === 1 || i === 13) { const t = el("text", { x: bx + w / 2, y: Ht - 6, class: "tick", "text-anchor": "middle" }); t.textContent = i === 13 ? "Today" : x.d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }); }
+    const hit = el("rect", { x: padL + i * bw, y: padT, width: bw, height: Ht - padT - padB, class: "hit", tabindex: 0 });
+    const show = () => {
+      tip.hidden = false;
+      tip.textContent = `${x.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${fmtTime(x.secs)} studied, ${x.q} answer${x.q === 1 ? "" : "s"}`;
+      const frac = (padL + i * bw + bw / 2) / Wd;
+      tip.style.left = `${frac * 100}%`;
+      tip.style.transform = `translateX(${frac > 0.7 ? -100 : frac < 0.3 ? 0 : -50}%)`; // keep it inside the panel
+    };
+    hit.addEventListener("pointerenter", show); hit.addEventListener("focus", show);
+    hit.addEventListener("pointerleave", () => (tip.hidden = true)); hit.addEventListener("blur", () => (tip.hidden = true));
+  });
+
+  const rows = COURSES.map((c) => {
+    const a = statsFor(startOfDay(-6), now, c.key), b = statsFor(startOfDay(-13), startOfDay(-6), c.key);
+    const all = Object.values(state.progress).filter((p) => p.courseKey === c.key);
+    const pa = pct(a), pb = pct(b);
+    return h("tr", {},
+      h("th", { scope: "row" }, c.title),
+      h("td", { class: "num" }, a.secs ? fmtTime(a.secs) : "–"),
+      h("td", { class: "num" }, pa == null ? "–" : `${pa}%`),
+      h("td", { class: "num" }, pb == null ? "–" : `${pb}%`),
+      h("td", {}, pa != null && pb != null && pa !== pb ? h("span", { class: `delta ${pa > pb ? "up" : "down"}` }, `${pa > pb ? "▲" : "▼"} ${Math.abs(pa - pb)} pts`) : h("span", { class: "delta flat" }, "–")),
+      h("td", { class: "num" }, String(all.filter((p) => p.done).length)),
+      h("td", { class: "num" }, String(all.reduce((t, p) => t + (p.missed?.length || 0), 0))));
+  });
+
+  return h("section", { class: "panel stats", "aria-labelledby": "stats-h" },
+    h("div", { class: "panel-head" }, h("h2", { id: "stats-h" }, "Your learning"),
+      h("span", { class: "muted" }, s ? `🔥 ${s}-day streak` : "Last 7 days")),
+    !hasAny ? h("p", { class: "note", style: "margin:0" }, "Open a lesson and answer a few questions. Your study time, accuracy, and improvement show up here.") : null,
+    h("div", { class: "tiles" },
+      tile("Study time", fmtTime(wk.secs), delta(wk.secs ? Math.round(wk.secs / 60) : 0, prev.secs || prev.q ? Math.round(prev.secs / 60) : null, " min")),
+      tile("Questions answered", String(wk.q), delta(wk.q, prev.q || prev.secs ? prev.q : null, "")),
+      tile("Right on first try", pct(wk) == null ? "–" : `${pct(wk)}%`, delta(pct(wk), pct(prev), " pts")),
+      tile("Lessons completed", String(wk.done), h("span", { class: "delta flat" }, `${wk.practice} practice set${wk.practice === 1 ? "" : "s"}`))),
+    h("div", { class: "chart-wrap" }, h("span", { class: "tile-label" }, "Minutes studied per day"), svg, tip),
+    h("div", { class: "scroll" }, h("table", { class: "stats-table" },
+      h("caption", {}, "By class. “First try” is the share of questions you got right on your first attempt; change is this week vs last week."),
+      h("thead", {}, h("tr", {}, ["Class", "Time (7d)", "First try (7d)", "Prior 7d", "Change", "Lessons done", "To review"].map((t) => h("th", { scope: "col" }, t)))),
+      h("tbody", {}, rows))));
+}
+
 /* ---------- views ---------- */
 const app = $("#app");
 function currentLesson() {
@@ -984,7 +1114,7 @@ function homeView() {
     const fresh = state.inbox.filter((r) => r.courseKey === key).length;
     return [`${done} of ${lessons} lesson${lessons === 1 ? "" : "s"} done`, fresh ? `${fresh} new from Canvas` : "", review ? `${review} to review` : "", state.deadlines.length ? `${n} upcoming` : ""].filter(Boolean).join(" · ");
   };
-  const codes = { accounting: "ACCT 2010", sql: "ISA 2050", "language-arts": "ENGL 3010" };
+  const codes = { accounting: "ACCT 2010", sql: "ISA 2050", "language-arts": "ENGL 3010", biology: "BIOL 1010" };
 
   const copyBtn = h("button", { class: "btn quiet small", onclick: async (e) => {
     const lines = week.map((d) => `• ${new Date(d.due).toLocaleString("en-US", { weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })} – ${labelOf(d)}: ${d.title}`);
@@ -997,6 +1127,7 @@ function homeView() {
       h("h1", {}, "What are we learning today?")),
     h("div", { class: "classes" }, COURSES.map((c) => h("button", { class: "class-card", onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) },
       h("span", { class: "code" }, codes[c.key]), h("h3", {}, c.title), h("span", { class: "meta" }, counts(c.key))))),
+    statsPanel(),
     h("div", { class: "split" },
       h("section", { class: "panel", "aria-labelledby": "due-h" },
         h("div", { class: "panel-head" }, h("h2", { id: "due-h" }, "Due this week"),

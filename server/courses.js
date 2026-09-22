@@ -22,7 +22,14 @@ export const COURSES = [
     title: "Language Arts 3010",
     blurb: "Readings, writing skills and assignment prep pulled from Canvas.",
     match: /3010|language arts|professional writing|\bengl\b/i,
-    tutor: "a language arts tutor for a 3010-level college course, covering reading, writing and literacy",
+    tutor: "a writing tutor for ENGL 3010 Professional Writing and Business Ethics",
+  },
+  {
+    key: "biology",
+    title: "Biology 1010",
+    blurb: "Readings, quizzes and assignment prep pulled from Canvas.",
+    match: /\bbiol|biology/i,
+    tutor: "a biology tutor for BIOL 1010 General Biology, an introductory life-science college course",
   },
 ];
 

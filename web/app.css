@@ -39,6 +39,8 @@
     --warn-soft: #362a12;
   }
 }
+:root { --bar: #2a78d6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bar: #3987e5; } }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --ground: #121817;
@@ -183,6 +185,27 @@ table.ref td:first-child { font-weight: 650; }
 .ws-field > label { font-size: .98rem; }
 .ws-journal td { padding: .25rem; }
 .ws-journal input { padding: .35rem .45rem; min-width: 5.5rem; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; }
+.tile { display: grid; gap: .15rem; padding: .75rem .9rem; background: var(--sunken); border-radius: 8px; }
+.tile-label { font-size: .8rem; color: var(--ink-soft); font-weight: 600; }
+.tile-value { font-family: var(--display); font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.delta { font-size: .8rem; font-weight: 600; }
+.delta.up { color: var(--good); }
+.delta.down { color: var(--bad); }
+.delta.flat { color: var(--ink-soft); font-weight: 500; }
+.chart-wrap { position: relative; display: grid; gap: .35rem; }
+.chart { width: 100%; height: auto; max-height: 190px; overflow: visible; }
+.chart .bar { fill: var(--bar); }
+.chart .grid { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart .axis { stroke: var(--ink-soft); stroke-width: 1; }
+.chart .tick { fill: var(--ink-soft); font: 10px var(--body); }
+.chart .hit { fill: transparent; cursor: default; outline: none; }
+.chart .hit:hover, .chart .hit:focus { fill: var(--ink); fill-opacity: .05; }
+.tip { position: absolute; top: 1.2rem; transform: translateX(-50%); background: var(--ink); color: var(--ground); font-size: .8rem; padding: .3rem .55rem; border-radius: 6px; max-width: min(260px, 90%); pointer-events: none; }
+.stats-table { font-size: .88rem; }
+.stats-table caption { caption-side: bottom; text-align: left; font-size: .8rem; color: var(--ink-soft); padding-top: .4rem; }
+.stats-table th[scope="row"] { font-weight: 650; background: none; font-size: .9rem; }
+.stats-table .num { font-variant-numeric: tabular-nums; }
 .builder { display: grid; gap: .75rem; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: none; padding: .35rem .8rem; font-weight: 600; font-size: .9rem; }

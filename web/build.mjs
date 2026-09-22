@@ -32,7 +32,7 @@ ${read("web/app.css")}
 <div id="app"></div>
 ${Object.keys(vendor).filter((n) => n !== "pdf.worker.min.js").map((n) => `<script src="vendor/${n}"></script>`).join("\n")}
 <script>
-window.LESSONS = ${json({ accounting, sql, "language-arts": [] })};
+window.LESSONS = ${json({ accounting, sql, "language-arts": [], biology: [] })};
 window.PRACTICE = ${json({ schema: read("public/lessons/practice-db.sql"), data: read("public/lessons/practice-data.sql") })};
 </script>
 <script>
