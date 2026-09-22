@@ -15,6 +15,11 @@ function h(tag, attrs = {}, ...kids) {
   return el;
 }
 const $ = (sel) => document.querySelector(sel);
+// replaceChildren/append turn null into the text "null"; skip empty slots instead.
+for (const m of ["replaceChildren", "append", "prepend"]) {
+  const orig = Element.prototype[m];
+  Element.prototype[m] = function (...nodes) { return orig.apply(this, nodes.filter((n) => n != null && n !== false)); };
+}
 const md = (t) => DOMPurify.sanitize(marked.parse(t || ""));
 const money = (n) => (typeof n === "number" ? "$" + n.toLocaleString("en-US") : "");
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -105,7 +110,9 @@ function mergeProgress(into, other = {}) {
     const completedAt = l.completedAt || r.completedAt;
     const solved = Math.max(l.solved || 0, r.solved || 0);
     const total = Math.max(l.total || 0, r.total || 0);
-    if ((r.updatedAt || "") > (l.updatedAt || "")) Object.assign(l, r); // newer copy wins for the mistake list and practice set
+    const localEmpty = !Object.keys(l).length;
+    if (localEmpty || (r.updatedAt || "") > (l.updatedAt || "")) Object.assign(l, r); // newer copy wins for the mistake list and practice set
+    else for (const [f, v] of Object.entries(r)) if (l[f] === undefined) l[f] = v; // fill anything this copy is missing
     Object.assign(l, { done, completedAt, solved, total });
     if (!l.done) delete l.done;
     if (!l.completedAt) delete l.completedAt;
@@ -421,6 +428,8 @@ const lessonKey = () => `${state.course}:${state.lessonId}`;
 function newTracker(lesson) {
   const key = lessonKey();
   const saved = (state.progress[key] ||= { courseKey: state.course, title: lesson.title, missed: [] });
+  saved.courseKey ||= state.course;
+  if (!Array.isArray(saved.missed)) saved.missed = [];
   saved.title = lesson.title;
   const t = {
     key, saved, count: 0, solved: new Set(), first: new Map(), listeners: [],
@@ -2105,6 +2114,16 @@ function builderView() {
       h("label", { for: "b-title" }, "Title", title), fileRow, pasteRow, status, h("div", { class: "row" }, go_)));
   const stage = h("div", {}, wrap);
   return stage;
+}
+
+/* ---------- if something breaks, say so instead of failing silently ---------- */
+addEventListener("error", (e) => showOops(e.message));
+addEventListener("unhandledrejection", (e) => showOops(e.reason?.message || String(e.reason)));
+function showOops(msg) {
+  if (!msg || document.querySelector(".oops")) return;
+  document.body.append(h("div", { class: "oops", role: "alert" },
+    h("b", {}, "Something went wrong. "), "Refresh the page to try again. If it keeps happening, tell Claude this message: ", h("code", {}, String(msg).slice(0, 200)),
+    h("button", { class: "linkish", onclick: (e) => e.currentTarget.parentElement.remove() }, "Dismiss")));
 }
 
 /* ---------- boot ---------- */
