@@ -244,6 +244,20 @@ table.ref td:first-child { font-weight: 650; }
 .fs tr.total input { width: 7.5rem; text-align: right; padding: .3rem .4rem; }
 .fs tr.total .fb { font-weight: 500; margin-top: .3rem; }
 .fs tr.wrong-line td { color: var(--bad); background: var(--bad-soft); }
+.sch { border-top: 1px solid var(--rule); }
+.sch:first-of-type { border-top: 0; }
+.sch > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem 0; }
+.sch > summary::-webkit-details-marker { display: none; }
+.sch-main { display: grid; gap: .25rem; min-width: 0; }
+.sch-done { opacity: .6; }
+.sch-body { display: grid; gap: .8rem; padding: 0 0 1rem; }
+.sch-q { display: grid; gap: .45rem; padding: .8rem; background: var(--ground); border: 1px solid var(--rule); border-radius: 8px; }
+.interview { display: grid; gap: .5rem; }
+.interview:empty { display: none; }
+.profile-fields { display: grid; gap: .6rem; }
+.chip.fit-strong { background: var(--good-soft); color: var(--good); }
+.chip.fit-possible { background: var(--warn-soft); color: var(--warn); }
+.chip.fit-unlikely { background: var(--sunken); color: var(--ink-soft); }
 .builder { display: grid; gap: .75rem; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: none; padding: .35rem .8rem; font-weight: 600; font-size: .9rem; }

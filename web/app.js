@@ -74,6 +74,8 @@ const state = {
   progress: {},      // "course:lessonId" -> completion + missed concepts
   worksheets: [],    // interactive worksheets: {id, courseKey, title, assignment, instructions, sections, answers}
   stats: { days: {} }, // "YYYY-MM-DD" -> courseKey -> {q, right, first, firstRight, secs, done, practice}
+  scholarships: [],  // {id, name, amount, deadline, url, eligibility, requirements, questions, status, fit, drafts, interview}
+  profile: {},       // the student's "about me" answers for scholarships
   inbox: [],         // readings brought in from Claude in Chrome, not built into lessons yet: {id, courseKey, title, text, module}
 };
 
@@ -83,6 +85,8 @@ async function loadState() {
   state.progress = p?.lessons || {};
   state.inbox = (await store.get("inbox"))?.items || [];
   state.worksheets = (await store.get("worksheets"))?.items || [];
+  state.scholarships = (await store.get("scholarships"))?.items || [];
+  state.profile = (await store.get("profile")) || {};
   state.stats = (await store.get("stats")) || { days: {} };
   state.stats.days ||= {};
   state.deadlines = (d?.items || []).map(normalizeDeadline);
@@ -1378,6 +1382,253 @@ function statsPanel() {
       h("tbody", {}, rows))));
 }
 
+/* ---------- scholarships ---------- */
+// Claude in Chrome reads the scholarship portal (read-only); Study Hub ranks fit, tracks
+// deadlines, and helps write answers from the student's own story. The student submits.
+const SCHOLARSHIP_PROMPT = `I'm a Utah Tech University student. Please look through my scholarship options. Only read. Don't click Apply, Submit, Save, or Accept, don't fill in any forms, and don't change anything.
+
+1. Open Utah Tech's scholarship portal. Start from https://utahtech.edu and search for "scholarships", or use the Scholarships link in myUT or Canvas. I'm already logged in.
+2. Look at my recommended or eligible opportunities first, then other open ones. Include outside scholarships the school lists if they look like a fit for a college student in Utah.
+3. For each scholarship with a deadline in the next 90 days, collect: its name, award amount, deadline, link, who is eligible (major, year, GPA, residency, need, etc.), what it requires (essays, letters, transcripts), every question or essay prompt word for word with any word limit, and whether I've already started or submitted it.
+
+When you're finished, reply with ONLY one JSON code block in exactly this shape:
+{
+  "studyhub_scholarships": 1,
+  "scholarships": [
+    { "name": "...", "amount": "...", "deadline": "ISO 8601 with offset, like 2026-10-15T23:59:00-06:00", "url": "...",
+      "eligibility": "...", "requirements": ["..."], "questions": [{ "prompt": "exact wording", "limit": "e.g. 500 words, or empty" }],
+      "status": "not started" | "started" | "submitted" }
+  ]
+}`;
+
+const PROFILE_FIELDS = [
+  ["major", "Major and minor", "e.g. Accounting, minor in Information Systems"],
+  ["year", "Year in school and expected graduation", "e.g. Sophomore, graduating May 2028"],
+  ["gpa", "GPA (optional)", ""],
+  ["from", "Where you're from", "e.g. St. George, Utah"],
+  ["activities", "Clubs, activities, leadership", ""],
+  ["work", "Jobs and work experience", ""],
+  ["service", "Volunteer or community service", ""],
+  ["goals", "Career goals and why", ""],
+  ["challenges", "Challenges you've overcome", "Only what you're comfortable sharing"],
+  ["need", "Financial situation (optional)", "e.g. first-generation student, working to pay tuition"],
+  ["other", "Anything else that makes you, you", "Hobbies, family, what you care about"],
+];
+
+const STATUSES = [["new", "Not started"], ["drafting", "Drafting"], ["ready", "Ready to submit"], ["submitted", "Submitted ✓"], ["skip", "Skipping"]];
+let schTimer;
+const saveScholarships = () => { clearTimeout(schTimer); schTimer = setTimeout(() => store.set("scholarships", { items: state.scholarships }), 600); };
+const saveProfile = () => store.set("profile", state.profile);
+
+function syncScholarshipDeadlines() {
+  state.deadlines = state.deadlines.filter((d) => d.kind !== "scholarship");
+  for (const s of state.scholarships) {
+    if (!s.deadline || ["submitted", "skip"].includes(s.status)) continue;
+    state.deadlines.push({ id: "sch-" + s.id, kind: "scholarship", scholarshipId: s.id, title: `💰 ${s.name}`, due: s.deadline, courseKey: null, courseLabel: "Scholarship", url: s.url || "" });
+  }
+  state.deadlines.sort((a, b) => new Date(a.due) - new Date(b.due));
+  saveDeadlines();
+}
+
+function importScholarships(text) {
+  const start = text.indexOf("{"), end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("I couldn't find the scholarship data. Paste Claude's whole reply, including the { } block.");
+  let pack;
+  try { pack = JSON.parse(text.slice(start, end + 1)); } catch { throw new Error("That reply got cut off. Ask Claude in Chrome: “Please send the full JSON again.”"); }
+  if (!Array.isArray(pack.scholarships)) throw new Error("That doesn't look like the scholarship reply. Use the Copy the scholarship prompt button.");
+  let added = 0, updated = 0;
+  for (const s of pack.scholarships) {
+    if (!s?.name) continue;
+    const due = new Date(s.deadline);
+    const rec = {
+      name: String(s.name).slice(0, 200), amount: String(s.amount || ""), deadline: isNaN(due) ? null : due.toISOString(), url: String(s.url || ""),
+      eligibility: String(s.eligibility || "").slice(0, 3000), requirements: (s.requirements || []).map(String).slice(0, 20),
+      questions: (s.questions || []).filter((q) => q?.prompt).map((q) => ({ prompt: String(q.prompt).slice(0, 2000), limit: String(q.limit || "") })).slice(0, 10),
+    };
+    const old = state.scholarships.find((x) => x.name.toLowerCase() === rec.name.toLowerCase());
+    if (old) { Object.assign(old, rec); if (/submitted/i.test(s.status)) old.status = "submitted"; updated++; }
+    else { state.scholarships.push({ id: uid(), status: /submitted/i.test(s.status) ? "submitted" : /started/i.test(s.status) ? "drafting" : "new", drafts: {}, interview: {}, ...rec }); added++; }
+  }
+  saveScholarships();
+  syncScholarshipDeadlines();
+  return { added, updated };
+}
+
+const profileText = () => PROFILE_FIELDS.map(([k, label]) => state.profile[k] ? `${label}: ${state.profile[k]}` : "").filter(Boolean).join("\n") || "(The student hasn't filled in their profile yet.)";
+const words = (t) => (t.trim().match(/\S+/g) || []).length;
+
+async function rankScholarships(statusEl) {
+  const open = state.scholarships.filter((s) => !["submitted", "skip"].includes(s.status));
+  if (!open.length) return;
+  statusEl.replaceChildren(h("p", { class: "note" }, "Claude is comparing each scholarship to your profile…"));
+  const prompt = `A college student at Utah Tech wants to know which scholarships to apply for. Judge each one ONLY against the eligibility rules and the student's profile below. Don't assume facts the profile doesn't state; if eligibility depends on something unknown, say what to check.
+
+Student profile:
+${profileText()}
+
+Scholarships:
+${open.map((s, i) => `${i}. ${s.name} (${s.amount || "amount not listed"}, due ${s.deadline ? new Date(s.deadline).toDateString() : "unknown"}). Eligibility: ${s.eligibility || "not listed"}. Requires: ${s.requirements.join("; ") || "not listed"}.`).join("\n")}
+
+Reply with ONLY a JSON array, one object per scholarship in the same order: [{"index": number, "fit": "strong" | "possible" | "unlikely", "why": "one short sentence", "effort": "low" | "medium" | "high"}]`;
+  try {
+    const res = await sample.json(prompt, { modelTier: "default", cache: false });
+    for (const r of Array.isArray(res) ? res : []) {
+      const s = open[Number(r.index)];
+      if (s && ["strong", "possible", "unlikely"].includes(r.fit)) s.fit = { level: r.fit, why: String(r.why || ""), effort: String(r.effort || "") };
+    }
+    saveScholarships();
+    render();
+  } catch (e) { statusEl.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); }
+}
+
+function scholarshipsView() {
+  const status = h("div");
+  const box = h("textarea", { id: "sch-pack", rows: 3, placeholder: "Paste Claude in Chrome's scholarship reply here…" });
+  const copy = h("button", { class: "btn small", onclick: async () => {
+    try { await navigator.clipboard.writeText(SCHOLARSHIP_PROMPT); copy.textContent = "Copied ✓"; } catch { pbox.hidden = false; pbox.select(); copy.textContent = "Select the text below and copy it"; }
+  } }, "Copy the scholarship prompt");
+  const pbox = h("textarea", { id: "sch-prompt", rows: 5, readonly: true, hidden: true }, SCHOLARSHIP_PROMPT);
+  const fitOrder = { strong: 0, possible: 1, undefined: 2, unlikely: 3 };
+  const list = [...state.scholarships].sort((a, b) =>
+    (["submitted", "skip"].includes(a.status) - ["submitted", "skip"].includes(b.status)) || (fitOrder[a.fit?.level] - fitOrder[b.fit?.level]) || (new Date(a.deadline || 8e15) - new Date(b.deadline || 8e15)));
+  const filled = PROFILE_FIELDS.filter(([k]) => state.profile[k]).length;
+
+  return h("main", { class: "home" },
+    h("div", { class: "hello" }, h("span", { class: "eyebrow" }, "Scholarships"), h("h1", {}, "Money for school, without the busywork")),
+    h("p", { class: "note", style: "margin:0" }, "Study Hub finds and ranks scholarships, tracks deadlines (they show up in Due this week and your reminders), and helps you write answers from your own story. You review, personalize, and click Submit yourself. Applications ask you to certify your answers, and some don't allow AI-written essays, so check each one's rules."),
+    h("div", { class: "split even" },
+      h("section", { class: "panel" }, h("h2", {}, "1. Find scholarships"),
+        h("ol", { class: "steps" }, h("li", {}, "Click ", h("b", {}, "Copy the scholarship prompt"), "."),
+          h("li", {}, "In Chrome, open the Claude extension, paste it, and send. Claude reads the scholarship portal. It won't apply or submit anything."),
+          h("li", {}, "Paste its reply here and click Import. Do this every couple of weeks.")),
+        h("div", { class: "row" }, copy), pbox, h("label", { for: "sch-pack" }, "Claude in Chrome's reply", box),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: () => {
+          try { const r = importScholarships(box.value); status.replaceChildren(h("p", { class: "note good" }, `Added ${r.added} and updated ${r.updated} scholarship${r.added + r.updated === 1 ? "" : "s"}.`)); box.value = ""; setTimeout(render, 900); }
+          catch (e) { status.replaceChildren(h("p", { class: "note bad" }, e.message)); }
+        } }, "Import")), status),
+      profilePanel(filled)),
+    h("section", { class: "panel" },
+      h("div", { class: "panel-head" }, h("h2", {}, `2. Your scholarships (${state.scholarships.length})`),
+        state.scholarships.length && sample ? h("button", { class: "btn small", onclick: (e) => rankScholarships(e.currentTarget.closest(".panel").querySelector(".rank-status")) }, "Rank by how well I fit") : null),
+      h("div", { class: "rank-status" }),
+      list.length ? list.map(scholarshipCard) : h("p", { class: "muted", style: "margin:0" }, "Nothing here yet. Import from the scholarship portal above.")));
+}
+
+function profilePanel(filled) {
+  const body = h("div", { class: "profile-fields", hidden: filled >= 5 });
+  for (const [k, label, ph] of PROFILE_FIELDS) {
+    const id = "pf-" + k;
+    const input = ["gpa", "year", "from", "major"].includes(k) ? h("input", { id, value: state.profile[k] || "", placeholder: ph }) : h("textarea", { id, rows: 2, placeholder: ph }, state.profile[k] || "");
+    input.addEventListener("change", () => { state.profile[k] = input.value.trim(); saveProfile(); });
+    body.append(h("label", { for: id }, label, input));
+  }
+  return h("section", { class: "panel" },
+    h("div", { class: "panel-head" }, h("h2", {}, "About you"), h("span", { class: "muted" }, `${filled} of ${PROFILE_FIELDS.length} filled`)),
+    h("p", { class: "muted", style: "margin:0" }, "Fill this in once. It's how Claude judges your fit and drafts answers that are true to you. It's saved privately to your account."),
+    body.hidden ? h("button", { class: "btn quiet small", onclick: (e) => { body.hidden = false; e.currentTarget.remove(); } }, "Edit my profile") : null,
+    body);
+}
+
+function scholarshipCard(s) {
+  const fitChip = s.fit ? h("span", { class: `chip fit-${s.fit.level}` }, { strong: "Strong fit", possible: "Possible fit", unlikely: "Unlikely fit" }[s.fit.level]) : null;
+  const statusSel = h("select", { id: "st-" + s.id, "aria-label": `Status for ${s.name}` }, STATUSES.map(([v, t]) => h("option", { value: v, selected: s.status === v }, t)));
+  statusSel.addEventListener("change", () => { s.status = statusSel.value; saveScholarships(); syncScholarshipDeadlines(); render(); });
+  const open = state.lessonId === s.id;
+  return h("details", { class: `sch ${["submitted", "skip"].includes(s.status) ? "sch-done" : ""}`, open, id: "sch-" + s.id, ontoggle: (e) => { if (e.currentTarget.open) state.lessonId = s.id; } },
+    h("summary", {},
+      h("div", { class: "sch-main" }, h("b", {}, s.name), h("div", { class: "row" }, s.amount ? h("span", { class: "chip" }, s.amount) : null, fitChip,
+        s.deadline ? h("span", { class: "muted", style: "font-size:.85rem" }, `Due ${new Date(s.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`) : null, s.deadline ? dueChip(s.deadline) : null)),
+      h("span", { class: "chip" }, STATUSES.find(([v]) => v === s.status)?.[1])),
+    h("div", { class: "sch-body" },
+      s.fit?.why ? h("p", { style: "margin:0" }, h("b", {}, "Fit: "), s.fit.why, s.fit.effort ? ` Effort: ${s.fit.effort}.` : "") : null,
+      s.eligibility ? h("p", { style: "margin:0" }, h("b", {}, "Who can apply: "), s.eligibility) : null,
+      s.requirements.length ? h("div", {}, h("b", {}, "You'll need"), h("ul", { class: "points" }, s.requirements.map((r) => h("li", {}, r)))) : null,
+      s.questions.map((q, i) => answerBox(s, q, i)),
+      h("div", { class: "row" }, h("label", { for: "st-" + s.id, style: "display:flex;gap:.5rem;align-items:center" }, "Status", statusSel),
+        s.url ? h("a", { class: "btn small", href: s.url, target: "_blank", rel: "noopener" }, "Open application ↗") : null)));
+}
+
+function answerBox(s, q, i) {
+  const key = String(i);
+  const draft = h("textarea", { id: `dr-${s.id}-${i}`, rows: 9, placeholder: "Your answer. Write it here, or get help drafting it below." }, s.drafts[key] || "");
+  const count = h("span", { class: "muted", style: "font-size:.85rem" });
+  const upd = () => { count.textContent = `${words(draft.value)} words${q.limit ? ` · limit: ${q.limit}` : ""}`; };
+  draft.addEventListener("input", () => { s.drafts[key] = draft.value; if (s.status === "new") s.status = "drafting"; upd(); saveScholarships(); });
+  upd();
+  const helper = h("div", { class: "interview" });
+  const busy = (msg) => helper.replaceChildren(h("div", { class: "row" }, h("div", { class: "spinner", style: "width:20px;height:20px;border-width:3px;margin:0" }), h("span", { class: "muted" }, msg)));
+
+  const startInterview = async () => {
+    busy("Thinking of questions that will pull out your best story…");
+    try {
+      const res = await sample.json(`Help a college student answer this scholarship prompt with their OWN true story. Ask 3-4 short, specific questions whose answers would give them the material for a strong answer. Build on what their profile already says instead of asking for it again.
+
+Scholarship: ${s.name}. Eligibility: ${s.eligibility || "n/a"}.
+Prompt: "${q.prompt}" ${q.limit ? `(limit: ${q.limit})` : ""}
+Profile:
+${profileText()}
+
+Reply with ONLY JSON: {"questions": ["...", "..."]}`, { cache: false });
+      const qs = (res?.questions || []).map(String).slice(0, 5);
+      if (!qs.length) throw { code: "invalid_json" };
+      s.interview[key] ||= {};
+      helper.replaceChildren(h("p", { style: "margin:0" }, h("b", {}, "Answer in your own words. Short notes are fine.")),
+        ...qs.map((qq, j) => {
+          const id = `iv-${s.id}-${i}-${j}`;
+          const t = h("textarea", { id, rows: 2 }, s.interview[key][qq] || "");
+          t.addEventListener("change", () => { s.interview[key][qq] = t.value; saveScholarships(); });
+          return h("label", { for: id }, qq, t);
+        }),
+        h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => writeDraft(qs) }, "Draft it from my answers")));
+    } catch (e) { helper.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); }
+  };
+
+  const writeDraft = async (qs) => {
+    const answers = (qs || Object.keys(s.interview[key] || {})).map((qq) => `Q: ${qq}\nA: ${s.interview[key]?.[qq] || "(no answer)"}`).join("\n\n");
+    busy("Drafting in your voice from your answers…");
+    try {
+      const { text } = await sample(`Draft a scholarship answer for a college student, in first person and in their own plain, genuine voice (not flowery), using ONLY facts from their profile and interview answers below. Never invent experiences, numbers, names, or awards. Where a specific detail would make it stronger but wasn't given, put a bracketed note like [add: the name of the club]. Stay under the word limit. Reply with only the answer text.
+
+Scholarship: ${s.name}
+Prompt: "${q.prompt}" ${q.limit ? `(limit: ${q.limit})` : ""}
+
+Profile:
+${profileText()}
+
+Interview:
+${answers}`, { cache: false, onText: ({ text }) => { draft.value = text; upd(); } });
+      draft.value = text.trim();
+      s.drafts[key] = draft.value;
+      if (s.status === "new") s.status = "drafting";
+      saveScholarships();
+      upd();
+      helper.replaceChildren(h("p", { class: "note good", style: "margin:0" }, "Draft ready. Read it out loud, fix anything that doesn't sound like you, and fill in every [add: …] before you submit."));
+    } catch (e) { helper.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); }
+  };
+
+  const feedback = async () => {
+    if (!draft.value.trim()) return;
+    busy("Reading your answer like a scholarship committee would…");
+    try {
+      const { text } = await sample(`You're a scholarship committee reader giving a student feedback on their answer. Don't rewrite it. Give 3-5 short, specific bullets: what's strong, what's vague, what's missing for this prompt, and whether it fits the word limit (it has ${words(draft.value)} words). End with the single most important fix.
+
+Prompt: "${q.prompt}" ${q.limit ? `(limit: ${q.limit})` : ""}
+Answer:
+${draft.value}`, { cache: false });
+      helper.replaceChildren(h("div", { class: "note", html: md(text) }));
+    } catch (e) { helper.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); }
+  };
+
+  const copyBtn = h("button", { class: "btn quiet small", onclick: async () => { try { await navigator.clipboard.writeText(draft.value); copyBtn.textContent = "Copied ✓"; } catch { draft.select(); copyBtn.textContent = "Selected: press Ctrl/⌘+C"; } } }, "Copy answer");
+  return h("div", { class: "sch-q" },
+    h("label", { for: `dr-${s.id}-${i}` }, `Question ${i + 1}: ${q.prompt}`), draft, count,
+    h("div", { class: "row" },
+      sample ? h("button", { class: "btn small", onclick: startInterview }, s.drafts[key] ? "Start over with questions" : "Help me answer this") : null,
+      sample && Object.keys(s.interview[key] || {}).length ? h("button", { class: "btn quiet small", onclick: () => writeDraft() }, "Redraft from my answers") : null,
+      sample ? h("button", { class: "btn quiet small", onclick: feedback }, "Get feedback") : null, copyBtn),
+    helper);
+}
+
 /* ---------- views ---------- */
 const app = $("#app");
 function currentLesson() {
@@ -1401,13 +1652,15 @@ function topbar() {
   return h("header", { class: "topbar" },
     h("button", { class: "brand", onclick: () => go("home") }, h("span", { class: "mark", "aria-hidden": "true" }, "UT"), "Study Hub"),
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
-      h("button", { class: "tab", "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title))));
+      h("button", { class: "tab", "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
+      h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")));
 }
 
 function render() {
   document.body.classList.remove("tutor-open");
   document.body.querySelector(".fab")?.remove();
-  app.replaceChildren(topbar(), state.view === "home" ? homeView() : classView());
+  app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : classView());
+  if (state.view === "scholarships" && state.lessonId) document.getElementById("sch-" + state.lessonId)?.scrollIntoView({ block: "start" });
 }
 
 const EXAMPLES = [
@@ -1463,6 +1716,7 @@ function homeView() {
           return h("li", {},
             h("span", { class: "day" }, h("b", {}, dt.toLocaleDateString("en-US", { weekday: "short" })), dt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })),
             h("div", {}, h("div", { class: "title" }, d.title), h("div", { class: "row" }, h("span", { class: "muted", style: "font-size:.85rem" }, labelOf(d)), dueChip(d.due))),
+            d.kind === "scholarship" ? h("button", { class: "btn small", onclick: () => go("scholarships", null, d.scholarshipId) }, "Work on it") :
             d.courseKey && !d.example ? (d.kind === "quiz"
               ? h("button", { class: "btn small", onclick: () => go("class", d.courseKey, "quiz-" + d.id) }, "Practice test")
               : h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep")) : null);
