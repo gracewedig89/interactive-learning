@@ -271,6 +271,21 @@ table.ref td:first-child { font-weight: 650; }
 .dock-tip { margin: .2rem 0 0; font-size: .75rem; font-family: var(--body); }
 .oops { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 50; max-width: 640px; margin: 0 auto; background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); border-radius: 10px; padding: .75rem 1rem; box-shadow: 0 8px 24px rgb(0 0 0 / .2); font-size: .92rem; display: grid; gap: .35rem; }
 .oops code { color: var(--ink); overflow-wrap: anywhere; }
+.xview { grid-template-columns: 280px minmax(0, 1fr); }
+.xstage { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h, 56px)); padding-bottom: 1rem; max-width: 900px; }
+.xhead { display: grid; gap: .2rem; margin-bottom: .5rem; }
+.xlog { flex: 1; min-height: 240px; overflow-y: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 1rem; display: flex; flex-direction: column; gap: .7rem; }
+.xactions { padding: .6rem 0; }
+.xcomposer { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+.xknow { display: grid; gap: .5rem; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: .8rem; margin: .5rem 0; }
+.xknow h2 { font-size: 1rem; }
+.xlist { margin: .2rem 0 0; padding-left: 1.1rem; font-size: .88rem; display: grid; gap: .15rem; }
+.xlist.good li::marker { color: var(--good); }
+.xlist.shaky li::marker { color: var(--warn); }
+.xpast summary { cursor: pointer; font-size: .9rem; padding: .3rem .5rem; display: grid; }
+.xpast-log { display: grid; gap: .5rem; padding: .5rem 0; font-size: .88rem; }
+.xtopics { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .8rem; }
+@media (max-width: 760px) { .xview { grid-template-columns: minmax(0, 1fr); } .xstage { height: auto; } .xlog { max-height: 60vh; } }
 .builder { display: grid; gap: .75rem; }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: none; padding: .35rem .8rem; font-weight: 600; font-size: .9rem; }

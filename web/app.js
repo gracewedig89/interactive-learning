@@ -31,7 +31,9 @@ const COURSES = [
   { key: "language-arts", title: "Language Arts 3010", match: /3010|language arts|professional writing|\bengl\b/i, tutor: "a writing tutor for ENGL 3010 Professional Writing and Business Ethics, covering professional and business writing, audience and purpose, document design, and ethical reasoning in business" },
   { key: "biology", title: "Biology 1010", match: /\bbiol|biology/i, tutor: "a biology tutor for BIOL 1010 General Biology, an introductory life-science college course" },
 ];
-const courseOf = (key) => COURSES.find((c) => c.key === key);
+const courseOf = (key) => COURSES.find((c) => c.key === key) || (key === "explore"
+  ? { key: "explore", title: state.explore?.topic ? `Explore: ${state.explore.topic.name}` : "Explore", tutor: `a patient, expert tutor on ${state.explore?.topic?.name || "the topic the student is exploring"}` }
+  : { key, title: key, tutor: "a patient, expert tutor" });
 const guessCourse = (text) => COURSES.find((c) => c.match.test(text))?.key || null;
 
 /* ---------- capabilities ---------- */
@@ -92,6 +94,7 @@ async function loadState() {
   state.worksheets = (await store.get("worksheets"))?.items || [];
   state.scholarships = (await store.get("scholarships"))?.items || [];
   state.profile = (await store.get("profile")) || {};
+  state.explore.topics = (await store.get("explore"))?.topics || state.explore.topics;
   mergeStats(state.stats, await store.get("stats"));
   state.deadlines = (d?.items || []).map(normalizeDeadline);
   state.deadlinesUpdatedAt = d?.updatedAt || null;
@@ -452,6 +455,7 @@ function newTracker(lesson) {
     },
     complete(auto) {
       if (!saved.done) bumpStat(state.course, { done: 1 });
+      if (state.course === "explore" && state.explore.topic) setTimeout(() => updateKnowledge(state.explore.topic, { quiet: true }), 500);
       saved.done = true;
       saved.updatedAt = new Date().toISOString();
       saved.completedAt = new Date().toISOString();
@@ -1143,12 +1147,13 @@ const tutor = {
     this.input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.send(); } });
     this.el = h("aside", { class: "tutor", "aria-label": "Tutor" },
       h("header", {}, h("h2", {}, "Tutor"),
-        h("button", { class: "linkish", onclick: () => { state.chats[state.course] = []; saveChats(); this.draw(); } }, "Clear"),
+        h("button", { class: "linkish", onclick: () => { state.chats[this.key] = []; saveChats(); this.draw(); } }, "Clear"),
         h("button", { class: "btn quiet small close", onclick: () => document.body.classList.remove("tutor-open"), "aria-label": "Close tutor" }, "✕")),
       this.log, h("div", { class: "composer" }, this.input, this.sendBtn));
     return this.el;
   },
-  get turns() { return (state.chats[state.course] ||= []); },
+  get key() { return state.course === "explore" && state.explore.topic ? "explore:" + state.explore.topic.id : state.course; },
+  get turns() { return (state.chats[this.key] ||= []); },
   draw() {
     if (!this.log) return;
     const turns = this.turns;
@@ -1169,6 +1174,7 @@ const tutor = {
       "Keep replies short and skimmable: a few sentences, bullets, or a small markdown table (great for debits/credits and query results).",
       "When they share an answer, say clearly if it's right; if not, point to the specific mistake and why.",
       "For graded assignments, guide them with steps and examples instead of writing the submission for them.",
+      state.course === "explore" && state.explore.topic ? `What they know about ${state.explore.topic.name}:\n${knowledgeText(state.explore.topic)}` : "",
       currentWorksheet() ? worksheetContext(currentWorksheet()) : "",
       lesson ? `They're on the lesson "${lesson.title}". Objectives: ${lesson.blocks.find((b) => b.type === "objectives")?.text || ""}` : "",
       state.activity.length ? `What they just did:\n${state.activity.slice(-8).join("\n")}` : "",
@@ -1460,7 +1466,7 @@ function statsPanel() {
     hit.addEventListener("pointerleave", () => (tip.hidden = true)); hit.addEventListener("blur", () => (tip.hidden = true));
   });
 
-  const rows = COURSES.map((c) => {
+  const rows = [...COURSES, { key: "explore", title: "Explore" }].map((c) => {
     const a = statsFor(startOfDay(-6), now, c.key), b = statsFor(startOfDay(-13), startOfDay(-6), c.key);
     const all = Object.values(state.progress).filter((p) => p.courseKey === c.key);
     const pa = pct(a), pb = pct(b);
@@ -1842,6 +1848,266 @@ ${draft.value}`, { cache: false });
     helper);
 }
 
+/* ---------- Explore: learn any topic, and keep building on it ---------- */
+// Each topic keeps a running "knowledge map" (what you've got, what's shaky, what's next),
+// summaries of past sessions, and its lessons. Every visit starts from that map, plus what
+// your classes show about how you learn.
+state.explore = { topics: [], topic: null, dirty: 0, saving: false, cache: {} };
+const topicKey = (id) => "topic-" + id;
+let topicTimer;
+function saveTopic(t = state.explore.topic) {
+  if (!t) return;
+  t.updatedAt = new Date().toISOString();
+  const idx = state.explore.topics.find((x) => x.id === t.id);
+  const meta = { id: t.id, name: t.name, updatedAt: t.updatedAt, level: t.knowledge?.level || "", mastered: t.knowledge?.mastered?.length || 0, sessions: t.sessions.length };
+  if (idx) Object.assign(idx, meta); else state.explore.topics.push(meta);
+  state.explore.cache[t.id] = t;
+  pendingTopic = t;
+  clearTimeout(topicTimer);
+  topicTimer = setTimeout(flushTopic, 500);
+}
+let pendingTopic = null;
+function flushTopic() {
+  clearTimeout(topicTimer);
+  const t = pendingTopic;
+  pendingTopic = null;
+  if (!t) return;
+  store.set(topicKey(t.id), t);
+  store.set("explore", { topics: state.explore.topics });
+}
+addEventListener("pagehide", flushTopic);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushTopic(); });
+async function openTopic(id) {
+  // Reuse the copy already open in this page (it may have unsaved messages); otherwise load it.
+  const t = state.explore.cache[id] || (await store.get(topicKey(id))) || null;
+  if (t) state.explore.cache[id] = t;
+  if (!t) return;
+  t.sessions ||= []; t.knowledge ||= {};
+  state.explore.topic = t;
+  state.explore.dirty = 0;
+  const today = dayKey();
+  let s = t.sessions.at(-1);
+  if (!s || s.day !== today) { s = { id: uid(), day: today, startedAt: new Date().toISOString(), messages: [] }; t.sessions.push(s); t.sessions = t.sessions.slice(-30); }
+  go("explore", "explore", null);
+  if (!s.messages.length) exploreSend(null, { kickoff: true });
+}
+async function newTopic(name) {
+  name = name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name) return;
+  const same = state.explore.topics.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  if (same) return openTopic(same.id);
+  const t = { id: uid(), name, createdAt: new Date().toISOString(), knowledge: {}, sessions: [] };
+  state.explore.cache[t.id] = t;
+  saveTopic(t);
+  openTopic(t.id);
+}
+const topicLessons = (t) => state.lessons.filter((l) => l.courseKey === "explore" && l.topicId === t.id);
+
+// What Study Hub knows about how she learns, from her classes.
+function learnerContext() {
+  const lines = [];
+  if (state.profile.major || state.profile.year) lines.push(`Student: ${[state.profile.year, state.profile.major].filter(Boolean).join(", ")}. Goals: ${(state.profile.goals || "").slice(0, 300)}`);
+  for (const c of COURSES) {
+    const mine = Object.entries(state.progress).filter(([k, p]) => p.courseKey === c.key);
+    if (!mine.length) continue;
+    const done = mine.filter(([, p]) => p.done).map(([, p]) => p.title);
+    const missed = mine.flatMap(([, p]) => (p.missed || []).map((m) => m.concept)).slice(-4);
+    const a = statsFor(startOfDay(-27), new Date(Date.now() + 1), c.key);
+    lines.push(`${c.title}: ${done.length ? `finished ${done.join("; ")}` : "in progress"}${a.first ? `; ${Math.round((a.firstRight / a.first) * 100)}% right on first try lately` : ""}${missed.length ? `; recently missed: ${missed.join("; ")}` : ""}.`);
+  }
+  return lines.join("\n") || "(No class data yet.)";
+}
+
+function knowledgeText(t) {
+  const k = t.knowledge || {};
+  if (!k.summary && !k.mastered?.length) return "(Brand new topic: nothing learned yet.)";
+  return [`Level: ${k.level || "unknown"}`, k.summary ? `Where she is: ${k.summary}` : "", k.mastered?.length ? `Already understands: ${k.mastered.join("; ")}` : "",
+    k.shaky?.length ? `Still shaky on: ${k.shaky.join("; ")}` : "", k.next?.length ? `Planned next: ${k.next.join("; ")}` : ""].filter(Boolean).join("\n");
+}
+
+function exploreRules(t) {
+  const past = t.sessions.slice(0, -1).filter((s) => s.summary).slice(-5).map((s) => `- ${s.day}: ${s.summary}`).join("\n");
+  return [
+    `You are Grace's personal tutor for "${t.name}", inside her study app. You pick up where you left off and build on what she already knows.`,
+    `What she knows about ${t.name} so far:\n${knowledgeText(t)}`,
+    past ? `Past sessions:\n${past}` : "This is your first session on this topic.",
+    `Her classes and how she's doing (use this to pitch the level and to connect new ideas to things she already knows):\n${learnerContext()}`,
+    "How to teach: small chunks, plain language, one real-world example at a time. End most replies with ONE short question that checks understanding or lets her choose where to go next. When she answers, say clearly whether she's right and why. If she's shaky, back up a step. Keep replies short and skimmable: a few sentences, bullets, or a small markdown table. When something matters for money or legal decisions (like real estate deals), note what she'd verify with a professional.",
+  ].join("\n\n");
+}
+
+async function exploreSend(text, { kickoff = false } = {}) {
+  const t = state.explore.topic;
+  if (!t || !sample) return;
+  const s = t.sessions.at(-1);
+  if (text) { s.messages.push({ role: "user", content: text }); state.explore.dirty++; }
+  const reply = { role: "assistant", content: "" };
+  s.messages.push(reply);
+  drawExploreLog();
+  const bubble = document.querySelector(".xlog .msg:last-child");
+  const history = s.messages.slice(0, -1).slice(-24).filter((m) => m.content);
+  const opener = kickoff
+    ? (t.sessions.length > 1 || t.knowledge?.summary
+      ? "(Session start: welcome me back in one line, remind me in one or two bullets where we left off, suggest what to do today, and ask me one question to get going.)"
+      : "(Session start: this topic is new. In a few lines, say what you'd start with given my classes, ask one or two quick questions to find my level, and give me 2-3 directions we could go.)")
+    : null;
+  try {
+    const { text: full } = await sample([{ role: "user", content: exploreRules(t) }, ...history, ...(opener ? [{ role: "user", content: opener }] : [])], {
+      cache: false, onText: ({ text }) => { if (bubble) bubble.innerHTML = md(text); const log = document.querySelector(".xlog"); if (log) log.scrollTop = log.scrollHeight; },
+    });
+    reply.content = full;
+  } catch (e) {
+    reply.content = (e.text ? e.text + "\n\n" : "") + `_${sampleErrorText(e)}_`;
+  }
+  saveTopic(t);
+  drawExploreLog();
+  if (state.explore.dirty >= 6) updateKnowledge(t, { quiet: true }); // keep the map fresh during long chats
+}
+
+async function updateKnowledge(t, { quiet = false } = {}) {
+  if (!sample || state.explore.saving) return;
+  state.explore.saving = true;
+  const note = document.querySelector(".xsave");
+  if (note && !quiet) note.textContent = "Saving what you learned…";
+  const s = t.sessions.at(-1);
+  const results = topicLessons(t).map((l) => state.progress[`explore:${l.id}`]).filter(Boolean)
+    .map((p) => `${p.title}: ${p.done ? "finished" : "in progress"}, ${p.firstTryRight ?? 0} right on first try; missed: ${(p.missed || []).map((m) => m.concept).join("; ") || "nothing"}`).join("\n");
+  const prompt = `You keep a student's running knowledge map for the topic "${t.name}". Update it from today's conversation and her practice results. Be specific and honest: only mark something mastered if she showed she understands it.
+
+Current map:
+${knowledgeText(t)}
+
+Today's conversation:
+${s.messages.slice(-30).map((m) => `${m.role === "user" ? "Grace" : "Tutor"}: ${m.content}`).join("\n").slice(-20000)}
+
+Practice results on this topic:
+${results || "(none yet)"}
+
+Reply with ONLY JSON: {"level": "beginner" | "getting there" | "solid" | "advanced", "summary": "2-3 sentences on where she is and how she learns best", "mastered": ["short concept", ...], "shaky": ["short concept", ...], "next": ["what to learn next", ...], "sessionSummary": "one sentence on what today's session covered"}`;
+  try {
+    const k = await sample.json(prompt, { cache: false });
+    if (k?.summary) {
+      t.knowledge = { level: String(k.level || ""), summary: String(k.summary), mastered: (k.mastered || []).map(String).slice(0, 25),
+        shaky: (k.shaky || []).map(String).slice(0, 12), next: (k.next || []).map(String).slice(0, 8), updatedAt: new Date().toISOString() };
+      if (k.sessionSummary) s.summary = String(k.sessionSummary);
+      state.explore.dirty = 0;
+      saveTopic(t);
+      if (state.view === "explore" && state.explore.topic === t) drawKnowledge();
+    }
+    if (note && !quiet) note.textContent = "✓ Saved to your knowledge map";
+  } catch (e) {
+    if (note && !quiet) note.textContent = sampleErrorText(e);
+  } finally { state.explore.saving = false; }
+}
+
+async function makeTopicLesson(kind) {
+  const t = state.explore.topic;
+  if (!t || !sample) return;
+  const status = document.querySelector(".xsave");
+  if (status) status.textContent = kind === "quiz" ? "Writing your quiz…" : "Building your lesson…";
+  const recent = (t.sessions.at(-1)?.messages || []).slice(-12).map((m) => `${m.role === "user" ? "Grace" : "Tutor"}: ${m.content}`).join("\n").slice(-8000);
+  const prompt = [
+    `Write an interactive ${kind === "quiz" ? "check-yourself quiz" : "lesson"} on "${t.name}" for Grace, pitched exactly at where she is. Build on what she knows, focus on what's shaky or next, and use fresh real-world examples.`,
+    `Her knowledge map:\n${knowledgeText(t)}`,
+    `What you've been talking about today:\n${recent || "(nothing yet)"}`,
+    `Her classes (for level and connections):\n${learnerContext()}`,
+    kind === "quiz"
+      ? "Make objectives one sentence, keyPoints a 3-5 bullet review, 6-8 quiz questions from easier to harder (each with a hint), and leave definitions, debitCredit, sqlExercises, practicePrompts empty."
+      : "Include 4-8 definitions, 4-6 quiz questions (each with a hint), and 1-2 practicePrompts. Include debitCredit transactions ONLY if the topic involves accounting entries, and sqlExercises ONLY if it involves databases (they must run on this SQLite schema: " + PRACTICE.schema.replace(/\s+/g, " ") + "). Otherwise leave them empty.",
+    LESSON_SHAPE.replace('"explanation": string}', '"hint": string, "explanation": string}'),
+  ].join("\n\n");
+  try {
+    const data = await sample.json(prompt, { cache: false });
+    if (!data?.title || !data?.quiz) throw { code: "invalid_json" };
+    if (kind === "quiz") data.title = `Quiz: ${data.title.replace(/^quiz:\s*/i, "")}`;
+    const rec = { id: "x-" + uid(), courseKey: "explore", topicId: t.id, title: data.title, source: t.name, createdAt: new Date().toISOString(), data };
+    state.lessons.push(rec);
+    saveLessons();
+    t.sessions.at(-1).messages.push({ role: "assistant", content: `📘 I made you a ${kind === "quiz" ? "quiz" : "lesson"}: **${data.title}**. Open it from the list on the left, or tap below.` , lessonId: rec.id });
+    saveTopic(t);
+    go("class", "explore", rec.id);
+  } catch (e) { if (status) status.textContent = sampleErrorText(e); }
+}
+
+function drawKnowledge() {
+  const box = document.querySelector(".xknow");
+  if (!box) return;
+  const t = state.explore.topic, k = t.knowledge || {};
+  const list = (title, items, cls) => items?.length ? h("div", {}, h("span", { class: "eyebrow" }, title), h("ul", { class: `xlist ${cls}` }, items.map((x) => h("li", {}, x)))) : null;
+  box.replaceChildren(
+    h("div", { class: "row" }, h("h2", { style: "flex:1" }, "What you know"), k.level ? h("span", { class: "chip done" }, k.level) : null),
+    k.summary ? h("p", { style: "margin:0;font-size:.92rem" }, k.summary) : h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, "This fills in as we talk. Tap 💾 Save what I learned any time."),
+    list("✓ Got it", k.mastered, "good"), list("⚠ Still shaky", k.shaky, "shaky"), list("→ Next up", k.next, ""));
+}
+
+function drawExploreLog() {
+  const log = document.querySelector(".xlog");
+  const t = state.explore.topic;
+  if (!log || !t) return;
+  const s = t.sessions.at(-1);
+  log.replaceChildren(...s.messages.map((m) => {
+    const b = m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "_Thinking…_") }) : h("div", { class: "msg user" }, m.content);
+    if (m.lessonId && state.lessons.some((l) => l.id === m.lessonId)) b.append(h("div", {}, h("button", { class: "btn small", onclick: () => go("class", "explore", m.lessonId) }, "Open it")));
+    return b;
+  }));
+  log.scrollTop = log.scrollHeight;
+}
+
+function exploreView() {
+  const t = state.explore.topic;
+  return t && state.course === "explore" ? topicView(t) : exploreHome();
+}
+
+function exploreHome() {
+  const input = h("input", { id: "x-topic", placeholder: "e.g. Real estate investing, how credit scores work, the stock market…", autocomplete: "off" });
+  const start = () => newTopic(input.value);
+  input.addEventListener("keydown", (e) => e.key === "Enter" && start());
+  const topics = [...state.explore.topics].sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  const ideas = ["Real estate investing", "How credit scores work", "Budgeting and saving", "How the stock market works", "Reading a company's financial statements", "Excel for business"];
+  return h("main", { class: "home" },
+    h("div", { class: "hello" }, h("span", { class: "eyebrow" }, "Explore"), h("h1", {}, "What do you want to learn today?")),
+    h("section", { class: "panel" },
+      h("label", { for: "x-topic" }, "Any topic"), h("div", { class: "row", style: "flex-wrap:nowrap" }, input, h("button", { class: "btn", onclick: start }, "Start")),
+      h("div", { class: "row" }, h("span", { class: "muted", style: "font-size:.88rem" }, "Ideas:"), ideas.map((x) => h("button", { class: "choice", onclick: () => newTopic(x) }, x))),
+      !sample ? h("p", { class: "note bad", style: "margin:0" }, "Explore works when this page is open in Claude (claude.ai or the Claude app).") : null),
+    h("section", { class: "panel" },
+      h("h2", {}, "Keep building"),
+      topics.length ? h("div", { class: "xtopics" }, topics.map((x) => h("button", { class: "class-card", onclick: () => openTopic(x.id) },
+        h("span", { class: "code" }, x.level || "new"), h("h3", {}, x.name),
+        h("span", { class: "meta" }, [x.mastered ? `${x.mastered} concept${x.mastered === 1 ? "" : "s"} learned` : "", x.sessions ? `${x.sessions} session${x.sessions === 1 ? "" : "s"}` : "",
+          x.updatedAt ? `last ${new Date(x.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""].filter(Boolean).join(" · ")))))
+        : h("p", { class: "muted", style: "margin:0" }, "Topics you explore show up here, with everything you've learned so far. Come back any time to keep going.")));
+}
+
+function topicView(t) {
+  const input = h("textarea", { id: "x-input", rows: 2, placeholder: `Ask anything about ${t.name}… (Enter to send)` });
+  const send = () => { const v = input.value.trim(); if (!v) return; input.value = ""; exploreSend(v); };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+  const lessons = topicLessons(t);
+  const side = h("nav", { class: "side", "aria-label": `${t.name}` },
+    h("button", { class: "item", onclick: () => { state.explore.topic = null; go("explore"); } }, "← All topics"),
+    h("section", { class: "xknow" }),
+    lessons.length ? h("span", { class: "eyebrow" }, "Lessons and quizzes") : null,
+    lessons.map((l) => h("button", { class: `item${state.progress["explore:" + l.id]?.done ? " is-done" : ""}`, onclick: () => go("class", "explore", l.id) }, l.title,
+      h("small", {}, new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })))),
+    t.sessions.length > 1 ? h("span", { class: "eyebrow" }, "Past sessions") : null,
+    t.sessions.slice(0, -1).reverse().map((s) => h("details", { class: "xpast" }, h("summary", {}, new Date(s.startedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+      s.summary ? h("small", {}, s.summary) : null),
+      h("div", { class: "xpast-log" }, s.messages.map((m) => m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content) }) : h("div", { class: "msg user" }, m.content))))));
+  const view = h("div", { class: "classview xview" }, side,
+    h("main", { class: "stage xstage" },
+      h("div", { class: "xhead" }, h("span", { class: "eyebrow" }, "Explore"), h("h1", {}, t.name)),
+      h("div", { class: "xlog log", "aria-live": "polite" }),
+      h("div", { class: "xactions row" },
+        h("button", { class: "btn small", onclick: () => makeTopicLesson("lesson") }, "🧩 Make me a lesson"),
+        h("button", { class: "btn small", onclick: () => makeTopicLesson("quiz") }, "❓ Quiz me"),
+        h("button", { class: "btn quiet small", onclick: () => updateKnowledge(t) }, "💾 Save what I learned"),
+        h("span", { class: "xsave muted", role: "status" })),
+      h("div", { class: "composer xcomposer" }, input, h("button", { class: "btn", onclick: send }, "Send"))));
+  queueMicrotask(() => { drawKnowledge(); drawExploreLog(); });
+  return view;
+}
+
 /* ---------- views ---------- */
 const app = $("#app");
 function currentLesson() {
@@ -1853,6 +2119,8 @@ function currentLesson() {
 }
 
 function go(view, course = null, lessonId = null) {
+  const t = state.explore?.topic;
+  if (t && state.view === "explore" && !(view === "explore" && course === "explore") && state.explore.dirty >= 2) updateKnowledge(t, { quiet: true });
   state.view = view;
   state.course = course;
   state.lessonId = lessonId;
@@ -1866,13 +2134,14 @@ function topbar() {
     h("button", { class: "brand", onclick: () => go("home") }, h("span", { class: "mark", "aria-hidden": "true" }, "UT"), "Study Hub"),
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
       h("button", { class: "tab", "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
+      h("button", { class: "tab", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
       h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")));
 }
 
 function render() {
   document.body.classList.remove("tutor-open");
   document.body.querySelector(".fab")?.remove();
-  app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : classView());
+  app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "explore" ? exploreView() : classView());
   document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar")?.offsetHeight || 56}px`);
   if (state.view === "scholarships" && state.lessonId) document.getElementById("sch-" + state.lessonId)?.scrollIntoView({ block: "start" });
 }
@@ -2001,7 +2270,11 @@ function classView() {
     class: `item${state.progress[`${state.course}:${id}`]?.done ? " is-done" : ""}`, "aria-current": state.lessonId === id ? "true" : null, onclick,
   }, label, sub ? h("small", {}, sub) : null);
 
-  const side = h("nav", { class: "side", "aria-label": `${course.title} lessons` },
+  const side = state.course === "explore" && state.explore.topic ? h("nav", { class: "side", "aria-label": course.title },
+    h("button", { class: "item", onclick: () => openTopic(state.explore.topic.id) }, `← Back to ${state.explore.topic.name}`),
+    h("span", { class: "eyebrow" }, "Lessons and quizzes"),
+    topicLessons(state.explore.topic).map((l) => item(l.id, l.title, new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }), () => go("class", "explore", l.id))))
+  : h("nav", { class: "side", "aria-label": `${course.title} lessons` },
     FORMULAS[state.course] ? item("formulas", "📋 Formula sheet", state.course === "sql" ? "patterns for pulling data" : "equations and rules", () => go("class", state.course, "formulas")) : null,
     builtIn.length ? h("span", { class: "eyebrow" }, "Lessons") : null,
     builtIn.map((l) => item(l.id, l.title, null, () => go("class", state.course, l.id))),
@@ -2031,7 +2304,7 @@ function classView() {
       stage.append(renderLesson(lesson));
       const g = state.lessons.find((l) => l.id === state.lessonId);
       if (g) stage.querySelector(".lesson").append(h("p", { class: "muted", style: "font-size:.88rem" }, `Built from “${g.source}”. `,
-        h("button", { class: "linkish", onclick: () => { deletedLessons.push(g.id); state.lessons = state.lessons.filter((x) => x.id !== g.id); saveLessons(); go("class", state.course, "build"); } }, "Delete this lesson")));
+        h("button", { class: "linkish", onclick: () => { deletedLessons.push(g.id); state.lessons = state.lessons.filter((x) => x.id !== g.id); saveLessons(); if (state.course === "explore" && state.explore.topic) openTopic(state.explore.topic.id); else go("class", state.course, "build"); } }, "Delete this lesson")));
     } else stage.append(builderView());
   }
 
