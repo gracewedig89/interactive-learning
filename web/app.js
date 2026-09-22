@@ -220,6 +220,7 @@ When you're finished, reply with ONLY one JSON code block in exactly this shape:
 Use "journal" for accounting journal-entry tables (rows = number of blank lines) and leave "rows" out for other types.`;
 
 function parsePack(text) {
+  if (/"page" \| "pdf"|ISO 8601 date with time zone offset, like/.test(text)) throw new Error("That's the prompt itself, not Claude's answer. Paste the prompt into the Claude extension in Chrome (with Canvas open), wait for Claude to finish, then copy Claude's reply and paste that here.");
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) throw new Error("I couldn't find the Study Hub data in that. Paste Claude's whole reply, including the { } block.");
@@ -1430,7 +1431,9 @@ function syncScholarshipDeadlines() {
   saveDeadlines();
 }
 
+const PASTED_PROMPT = "That's the prompt itself, not Claude's answer. Paste the prompt into the Claude extension in Chrome (with Scholarship Universe open), wait for Claude to finish, then copy Claude's reply and paste that here.";
 function importScholarships(text) {
+  if (/"not started" \| "started"|ISO 8601 with offset/.test(text)) throw new Error(PASTED_PROMPT);
   const start = text.indexOf("{"), end = text.lastIndexOf("}");
   if (start < 0 || end <= start) throw new Error("I couldn't find the scholarship data. Paste Claude's whole reply, including the { } block.");
   let pack;
@@ -1447,7 +1450,7 @@ function importScholarships(text) {
     };
     const old = state.scholarships.find((x) => x.name.toLowerCase() === rec.name.toLowerCase());
     if (old) { Object.assign(old, rec); if (/submitted/i.test(s.status)) old.status = "submitted"; updated++; }
-    else { state.scholarships.push({ id: uid(), status: /submitted/i.test(s.status) ? "submitted" : /started/i.test(s.status) ? "drafting" : "new", drafts: {}, interview: {}, ...rec }); added++; }
+    else { state.scholarships.push({ id: uid(), status: /submitted/i.test(s.status) ? "submitted" : /^\s*started/i.test(s.status || "") ? "drafting" : "new", drafts: {}, interview: {}, ...rec }); added++; }
   }
   saveScholarships();
   syncScholarshipDeadlines();
@@ -1457,7 +1460,7 @@ function importScholarships(text) {
 const profileText = () => PROFILE_FIELDS.map(([k, label]) => state.profile[k] ? `${label}: ${state.profile[k]}` : "").filter(Boolean).join("\n") || "(The student hasn't filled in their profile yet.)";
 const words = (t) => (t.trim().match(/\S+/g) || []).length;
 
-async function rankScholarships(statusEl) {
+async function rankScholarships(statusEl, { rerender = true } = {}) {
   const open = state.scholarships.filter((s) => !["submitted", "skip"].includes(s.status));
   if (!open.length) return;
   statusEl.replaceChildren(h("p", { class: "note" }, "Claude is comparing each scholarship to your profile…"));
@@ -1477,9 +1480,91 @@ Reply with ONLY a JSON array, one object per scholarship in the same order: [{"i
       if (s && ["strong", "possible", "unlikely"].includes(r.fit)) s.fit = { level: r.fit, why: String(r.why || ""), effort: String(r.effort || "") };
     }
     saveScholarships();
-    render();
-  } catch (e) { statusEl.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); }
+    if (rerender) render();
+    return true;
+  } catch (e) { statusEl.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e))); return false; }
 }
+
+// Drafts every unanswered question for the scholarships that fit, one at a time.
+async function prepareAll(statusEl) {
+  if (!sample) return;
+  const ctl = new AbortController();
+  const stop = h("button", { class: "btn quiet small", onclick: () => ctl.abort() }, "Stop");
+  const line = h("span", {});
+  statusEl.replaceChildren(h("div", { class: "note row" }, h("div", { class: "spinner", style: "width:20px;height:20px;border-width:3px;margin:0" }), line, stop));
+  const filled = PROFILE_FIELDS.filter(([k]) => state.profile[k]).length;
+  if (filled < 4) { statusEl.replaceChildren(h("p", { class: "note bad" }, "Fill in at least 4 of the About-you boxes first. Your drafts are built from them.")); return; }
+  const open = state.scholarships.filter((s) => !["submitted", "skip"].includes(s.status));
+  if (open.some((s) => !s.fit)) { line.textContent = "Checking which scholarships fit you…"; await rankScholarships(statusEl, { rerender: false }); statusEl.replaceChildren(h("div", { class: "note row" }, h("div", { class: "spinner", style: "width:20px;height:20px;border-width:3px;margin:0" }), line, stop)); }
+  const targets = open.filter((s) => s.fit?.level !== "unlikely");
+  const jobs = targets.flatMap((s) => s.questions.map((q, i) => ({ s, q, i })).filter(({ s, i }) => !(s.drafts[String(i)] || "").trim()));
+  let done = 0;
+  for (const { s, q, i } of jobs) {
+    if (ctl.signal.aborted) break;
+    line.textContent = `Drafting ${done + 1} of ${jobs.length}: ${s.name}, question ${i + 1}…`;
+    try {
+      const { text } = await sample(`Draft a scholarship answer for a college student, in first person and in their own plain, genuine voice (not flowery), using ONLY facts from their profile below. Never invent experiences, numbers, names, or awards. Where a specific detail would make it stronger but isn't in the profile, put a bracketed note like [add: a specific example of when you did this]. Stay under the word limit (if none is given, aim for 250-350 words). Reply with only the answer text.
+
+Scholarship: ${s.name}. Who it's for: ${s.eligibility || "n/a"}
+Prompt: "${q.prompt}" ${q.limit ? `(limit: ${q.limit})` : ""}
+
+Profile:
+${profileText()}`, { cache: false, signal: ctl.signal });
+      s.drafts[String(i)] = text.trim();
+      if (s.status === "new") s.status = "drafting";
+      saveScholarships();
+      done++;
+    } catch (e) {
+      if (e?.code === "cancelled") break;
+      statusEl.replaceChildren(h("p", { class: "note bad" }, `${sampleErrorText(e)} ${done} draft${done === 1 ? "" : "s"} finished before this. Press Prepare again to continue.`));
+      return render();
+    }
+  }
+  render();
+  const msg = document.querySelector(".rank-status");
+  msg?.replaceChildren(h("p", { class: "note good" }, jobs.length
+    ? `Drafted ${done} answer${done === 1 ? "" : "s"} across ${targets.length} scholarship${targets.length === 1 ? "" : "s"}. Open each one, read it, fill in every [add: …], then download its packet and apply.`
+    : "Every question for your matching scholarships already has a draft. Open each one to review."));
+}
+
+// A review packet: link, deadline, checklist, and every question with its answer.
+function scholarshipPdf(list) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const M = 54, W = 612 - M * 2;
+  let y = M;
+  const need = (hgt) => { if (y + hgt > 792 - M) { doc.addPage(); y = M; } };
+  const text = (t, size = 11, style = "normal", gap = 4, color = [20, 30, 30]) => {
+    doc.setFont("helvetica", style); doc.setFontSize(size); doc.setTextColor(...color);
+    for (const line of doc.splitTextToSize(String(t), W)) { need(size + gap); doc.text(line, M, y + size); y += size + gap; }
+  };
+  list.forEach((s, n) => {
+    if (n) { doc.addPage(); y = M; }
+    text(s.name, 18, "bold", 6);
+    text([s.amount, s.deadline ? `Due ${new Date(s.deadline).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""].filter(Boolean).join("  ·  "), 11, "normal");
+    const link = s.url || "https://utahtech.scholarshipuniverse.com/student/dashboard";
+    need(18); doc.setFontSize(11); doc.setTextColor(10, 124, 132); doc.textWithLink(`Apply here: ${link}`.slice(0, 95), M, y + 11, { url: link }); y += 18;
+    if (s.eligibility) { y += 4; text("Who can apply", 11, "bold"); text(s.eligibility, 10); }
+    if (s.requirements.length) { y += 4; text("Checklist", 11, "bold"); s.requirements.forEach((r) => text(`[  ] ${r}`, 10)); }
+    s.questions.forEach((q, i) => {
+      y += 10;
+      text(`Question ${i + 1}${q.limit ? ` (${q.limit})` : ""}`, 12, "bold", 5);
+      text(q.prompt, 10, "italic", 4, [80, 90, 90]);
+      y += 4;
+      const ans = (s.drafts[String(i)] || "").trim();
+      text(ans || "(no answer yet)", 11, "normal", 5);
+      const gaps = (ans.match(/\[add:[^\]]*\]/gi) || []).length;
+      if (gaps) text(`NOTE: ${gaps} spot${gaps === 1 ? "" : "s"} marked [add: …]${gaps === 1 ? " still needs" : " still need"} your details.`, 10, "bold", 4, [179, 38, 30]);
+    });
+  });
+  return doc.output("blob");
+}
+
+async function downloadPacket(list, name) {
+  if (!downloads) return;
+  try { await downloads.save({ filename: name, data: scholarshipPdf(list) }); } catch (e) { if (e?.code !== "declined") alertScholarship("Couldn't save the PDF here. Try again in the Claude app or on claude.ai."); }
+}
+const alertScholarship = (t) => document.querySelector(".rank-status")?.replaceChildren(h("p", { class: "note bad" }, t));
 
 function scholarshipsView() {
   const status = h("div");
@@ -1509,7 +1594,11 @@ function scholarshipsView() {
       profilePanel(filled)),
     h("section", { class: "panel" },
       h("div", { class: "panel-head" }, h("h2", {}, `2. Your scholarships (${state.scholarships.length})`),
-        state.scholarships.length && sample ? h("button", { class: "btn small", onclick: (e) => rankScholarships(e.currentTarget.closest(".panel").querySelector(".rank-status")) }, "Rank by how well I fit") : null),
+        h("div", { class: "row" },
+          state.scholarships.length && sample ? h("button", { class: "btn", onclick: (e) => prepareAll(e.currentTarget.closest(".panel").querySelector(".rank-status")) }, "✨ Prepare my applications") : null,
+          state.scholarships.length && sample ? h("button", { class: "btn quiet small", onclick: (e) => rankScholarships(e.currentTarget.closest(".panel").querySelector(".rank-status")) }, "Re-rank fit") : null,
+          downloads && state.scholarships.some((s) => Object.values(s.drafts || {}).some(Boolean)) ? h("button", { class: "btn quiet small", onclick: () => downloadPacket(state.scholarships.filter((s) => !["submitted", "skip"].includes(s.status) && Object.values(s.drafts || {}).some(Boolean)), "Scholarship applications.pdf") }, "Download all (PDF)") : null)),
+      state.scholarships.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, "✨ Prepare checks your fit, then drafts every question for the scholarships that match, using your About-you info. Then open each one, review and personalize it, download its packet, and apply with the link.") : null,
       h("div", { class: "rank-status" }),
       list.length ? list.map(scholarshipCard) : h("p", { class: "muted", style: "margin:0" }, "Nothing here yet. Import from the scholarship portal above.")));
 }
@@ -1552,14 +1641,17 @@ function scholarshipCard(s) {
     h("summary", {},
       h("div", { class: "sch-main" }, h("b", {}, s.name), h("div", { class: "row" }, s.amount ? h("span", { class: "chip" }, s.amount) : null, fitChip,
         s.deadline ? h("span", { class: "muted", style: "font-size:.85rem" }, `Due ${new Date(s.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`) : null, s.deadline ? dueChip(s.deadline) : null)),
-      h("span", { class: "chip" }, STATUSES.find(([v]) => v === s.status)?.[1])),
+      h("div", { class: "row", style: "justify-content:flex-end" },
+        (() => { const gaps = Object.values(s.drafts || {}).join(" ").match(/\[add:[^\]]*\]/gi)?.length || 0; return gaps ? h("span", { class: "chip soon" }, `${gaps} to fill in`) : null; })(),
+        h("span", { class: "chip" }, STATUSES.find(([v]) => v === s.status)?.[1]))),
     h("div", { class: "sch-body" },
       s.fit?.why ? h("p", { style: "margin:0" }, h("b", {}, "Fit: "), s.fit.why, s.fit.effort ? ` Effort: ${s.fit.effort}.` : "") : null,
       s.eligibility ? h("p", { style: "margin:0" }, h("b", {}, "Who can apply: "), s.eligibility) : null,
       s.requirements.length ? h("div", {}, h("b", {}, "You'll need"), h("ul", { class: "points" }, s.requirements.map((r) => h("li", {}, r)))) : null,
       s.questions.map((q, i) => answerBox(s, q, i)),
       h("div", { class: "row" }, h("label", { for: "st-" + s.id, style: "display:flex;gap:.5rem;align-items:center" }, "Status", statusSel),
-        s.url ? h("a", { class: "btn small", href: s.url, target: "_blank", rel: "noopener" }, "Open application ↗") : null)));
+        downloads && Object.values(s.drafts || {}).some(Boolean) ? h("button", { class: "btn quiet small", onclick: () => downloadPacket([s], `${s.name.replace(/[^\w .-]/g, "").trim() || "scholarship"}.pdf`) }, "Download packet (PDF)") : null,
+        h("a", { class: "btn small", href: s.url || "https://utahtech.scholarshipuniverse.com/student/dashboard", target: "_blank", rel: "noopener" }, "Apply here ↗"))));
 }
 
 function answerBox(s, q, i) {
