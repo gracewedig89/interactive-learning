@@ -14,14 +14,14 @@ export const COURSES = [
     key: "sql",
     title: "SQL",
     blurb: "Write real queries against a practice database, right in the browser.",
-    match: /sql|database|\bdb\b|data management/i,
+    match: /sql|database|\bdb\b|data management|information systems|\bISA[\s-]?\d{4}/i,
     tutor: "a SQL and relational database tutor for a college database course",
   },
   {
     key: "language-arts",
     title: "Language Arts 3010",
     blurb: "Readings, writing skills and assignment prep pulled from Canvas.",
-    match: /3010|language arts|\bengl\b/i,
+    match: /3010|language arts|professional writing|\bengl\b/i,
     tutor: "a language arts tutor for a 3010-level college course, covering reading, writing and literacy",
   },
 ];

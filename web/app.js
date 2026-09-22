@@ -22,8 +22,8 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 /* ---------- classes ---------- */
 const COURSES = [
   { key: "accounting", title: "Accounting", match: /acc(oun)?t/i, tutor: "an accounting tutor for an introductory financial accounting college course" },
-  { key: "sql", title: "SQL", match: /sql|database|\bdb\b|data management|\b(IT|CS|IS|CIS|DBA)[\s-]?\d{4}/i, tutor: "a SQL and relational database tutor for a college database course" },
-  { key: "language-arts", title: "Language Arts 3010", match: /3010|language arts|\bengl\b|\beled\b|literacy/i, tutor: "a language arts tutor for a 3010-level college course covering reading, writing and literacy" },
+  { key: "sql", title: "SQL", match: /sql|database|\bdb\b|data management|information systems|\b(ISA|IT|CS|IS|CIS|DBA|MIS)[\s-]?\d{4}/i, tutor: "a SQL and database tutor for ISA 2050 Management Information Systems, a college MIS course" },
+  { key: "language-arts", title: "Language Arts 3010", match: /3010|language arts|professional writing|\bengl\b/i, tutor: "a writing tutor for ENGL 3010 Professional Writing and Business Ethics, covering professional and business writing, audience and purpose, document design, and ethical reasoning in business" },
 ];
 const courseOf = (key) => COURSES.find((c) => c.key === key);
 const guessCourse = (text) => COURSES.find((c) => c.match.test(text))?.key || null;
@@ -155,7 +155,7 @@ function importIcs(text) {
 // JSON "pack"; the student pastes it here. No password or token ever reaches this page.
 const CHROME_PROMPT = `I'm logged into Utah Tech Canvas (https://utahtech.instructure.com). Please gather what I need to study. Only read. Don't submit, post, or change anything.
 
-My classes: Accounting, SQL (a database class), and Language Arts 3010.
+My classes: ACCT 2010 Principles of Accounting I, ISA 2050 Management Information Systems (the SQL/database part matters most), and ENGL 3010 Professional Writing and Business Ethics.
 
 For each class:
 1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed). Also check the Announcements from the last 2 weeks for readings or links my teacher wants me to look at.
@@ -984,7 +984,7 @@ function homeView() {
     const fresh = state.inbox.filter((r) => r.courseKey === key).length;
     return [`${done} of ${lessons} lesson${lessons === 1 ? "" : "s"} done`, fresh ? `${fresh} new from Canvas` : "", review ? `${review} to review` : "", state.deadlines.length ? `${n} upcoming` : ""].filter(Boolean).join(" · ");
   };
-  const codes = { accounting: "ACCT", sql: "SQL", "language-arts": "LA 3010" };
+  const codes = { accounting: "ACCT 2010", sql: "ISA 2050", "language-arts": "ENGL 3010" };
 
   const copyBtn = h("button", { class: "btn quiet small", onclick: async (e) => {
     const lines = week.map((d) => `• ${new Date(d.due).toLocaleString("en-US", { weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })} – ${labelOf(d)}: ${d.title}`);
