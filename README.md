@@ -10,6 +10,20 @@ A personal study app for Utah Tech classes:
 - **24/7 tutor chat** on every page. It knows which lesson you're on and what you just got wrong. Hit "Ask the tutor why" on any wrong answer.
 - **Text reminders:** a weekly list of everything due, plus a text before each assignment with a link to a prep lesson for it.
 
+## Web version (start here)
+
+`web/` is a version of Study Hub that runs as a web page on claude.ai. It needs no setup and no API key, because Claude is the tutor through your own Claude plan.
+
+- **Canvas due dates:** in Canvas, go to Calendar → **Calendar Feed**, download the `.ics` file, and drop it on the home page.
+- **Canvas readings:** open a class, choose **Add from Canvas**, and upload a PDF or paste page text. Claude turns it into a lesson.
+- Your due dates and lessons are saved privately to your account.
+
+To rebuild the page after changing `web/`: `npm run build:web`. This writes `web/dist/study-hub.html` plus `web/dist/vendor/`.
+
+## Full version (with text reminders)
+
+The Node server below adds automatic Canvas sync and text messages. It needs the API keys described below.
+
 ## Run it
 
 Requires [Node.js 22+](https://nodejs.org).
