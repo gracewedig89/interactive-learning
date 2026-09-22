@@ -69,12 +69,14 @@ const state = {
   activity: [],
   builder: null,     // prefill for the lesson builder
   progress: {},      // "course:lessonId" -> completion + missed concepts
+  inbox: [],         // readings brought in from Claude in Chrome, not built into lessons yet: {id, courseKey, title, text, module}
 };
 
 async function loadState() {
   await ready;
   const [d, l, p] = await Promise.all([store.get("deadlines"), store.get("lessons"), store.get("progress")]);
   state.progress = p?.lessons || {};
+  state.inbox = (await store.get("inbox"))?.items || [];
   state.deadlines = d?.items || [];
   state.lessons = l?.items || [];
   state.chats = local.get("chats") || {};
@@ -82,6 +84,7 @@ async function loadState() {
 const saveDeadlines = () => store.set("deadlines", { items: state.deadlines, updatedAt: new Date().toISOString() });
 let progressTimer;
 const saveProgress = () => { clearTimeout(progressTimer); progressTimer = setTimeout(() => store.set("progress", { lessons: state.progress }), 600); };
+const saveInbox = () => store.set("inbox", { items: state.inbox });
 const saveLessons = () => store.set("lessons", { items: state.lessons });
 const saveChats = () => local.set("chats", Object.fromEntries(Object.entries(state.chats).map(([k, v]) => [k, v.slice(-30)])));
 
@@ -139,6 +142,100 @@ function importIcs(text) {
   state.deadlines = [...upcoming, ...manual].sort((a, b) => new Date(a.due) - new Date(b.due));
   saveDeadlines();
   return { total: events.length, upcoming: upcoming.length };
+}
+
+/* ---------- Claude in Chrome bridge ---------- */
+// Claude in Chrome reads Canvas in the student's own logged-in browser and replies with a
+// JSON "pack"; the student pastes it here. No password or token ever reaches this page.
+const CHROME_PROMPT = `I'm logged into Utah Tech Canvas (https://utahtech.instructure.com). Please gather what I need to study. Only read. Don't submit, post, or change anything.
+
+My classes: Accounting, SQL (a database class), and Language Arts 3010.
+
+For each class:
+1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed).
+2. Open every reading, page, and PDF in those modules. For each one, write detailed study notes that keep all key concepts, rules, definitions, formulas, and worked examples. Up to about 800 words each, written so someone could learn from them without the original.
+3. Open Assignments (and quizzes and discussions) and list everything due in the next 14 days, with the full instructions.
+
+When you're finished, reply with ONLY one JSON code block in exactly this shape:
+{
+  "studyhub": 1,
+  "courses": [
+    {
+      "course": "course name and code as shown in Canvas",
+      "readings": [{ "module": "module name", "title": "reading title", "notes": "your detailed study notes" }],
+      "assignments": [{ "title": "...", "due": "ISO 8601 date with time zone offset, like 2026-09-24T23:59:00-06:00", "instructions": "full instructions", "url": "link to it in Canvas" }]
+    }
+  ]
+}`;
+
+function parsePack(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("I couldn't find the Study Hub data in that. Paste Claude's whole reply, including the { } block.");
+  let pack;
+  try { pack = JSON.parse(text.slice(start, end + 1)); } catch { throw new Error("That reply got cut off or isn't complete. Ask Claude in Chrome: “Please send the full JSON again.”"); }
+  if (!Array.isArray(pack.courses)) throw new Error("That doesn't look like a Study Hub reply. Use the prompt from the Copy button.");
+  return pack;
+}
+
+function importPack(text) {
+  const pack = parsePack(text);
+  let readings = 0, assignments = 0;
+  const skipped = [];
+  for (const c of pack.courses) {
+    const courseKey = guessCourse(String(c.course || ""));
+    if (!courseKey) { skipped.push(c.course); continue; }
+    for (const r of c.readings || []) {
+      if (!r?.notes || String(r.notes).length < 40) continue;
+      const title = String(r.title || "Reading").slice(0, 140);
+      state.inbox = state.inbox.filter((x) => !(x.courseKey === courseKey && x.title === title));
+      state.inbox.push({ id: "r-" + uid(), courseKey, title, module: String(r.module || ""), text: String(r.notes).slice(0, 30000), addedAt: new Date().toISOString() });
+      readings++;
+    }
+    for (const a of c.assignments || []) {
+      const due = new Date(a?.due);
+      if (!a?.title || isNaN(due)) continue;
+      const title = String(a.title).slice(0, 200);
+      const existing = state.deadlines.find((d) => d.courseKey === courseKey && d.title.toLowerCase() === title.toLowerCase());
+      const rec = { id: existing?.id || "c-" + uid(), title, due: due.toISOString(), courseKey, courseLabel: String(c.course || ""),
+        url: String(a.url || existing?.url || ""), description: String(a.instructions || existing?.description || "").slice(0, 6000) };
+      if (existing) Object.assign(existing, rec); else state.deadlines.push(rec);
+      assignments++;
+    }
+  }
+  state.deadlines.sort((x, y) => new Date(x.due) - new Date(y.due));
+  saveDeadlines();
+  saveInbox();
+  return { readings, assignments, skipped };
+}
+
+function chromePanel() {
+  const status = h("div");
+  const box = h("textarea", { id: "pack", rows: 4, placeholder: "Paste Claude in Chrome's reply here…" });
+  const copy = h("button", { class: "btn small", onclick: async () => {
+    try { await navigator.clipboard.writeText(CHROME_PROMPT); copy.textContent = "Copied ✓"; }
+    catch { promptBox.hidden = false; promptBox.select(); copy.textContent = "Select the text below and copy it"; }
+  } }, "Copy the Canvas prompt");
+  const promptBox = h("textarea", { id: "chrome-prompt", rows: 6, readonly: true, hidden: true }, CHROME_PROMPT);
+  return h("section", { class: "panel", "aria-labelledby": "chrome-h" },
+    h("div", { class: "panel-head" }, h("h2", { id: "chrome-h" }, "Pull from Canvas with Claude in Chrome"), h("span", { class: "chip done" }, "Recommended")),
+    h("ol", { class: "steps" },
+      h("li", {}, "Click ", h("b", {}, "Copy the Canvas prompt"), "."),
+      h("li", {}, "In Chrome, open ", h("a", { href: "https://utahtech.instructure.com", target: "_blank", rel: "noopener" }, "Canvas"), " (logged in), open the Claude extension, paste the prompt, and send it. Claude reads your modules, readings and assignments. Approve if it asks."),
+      h("li", {}, "When it finishes, copy its whole reply and paste it here. Do this once a week.")),
+    h("div", { class: "row" }, copy), promptBox,
+    h("label", { for: "pack" }, "Claude in Chrome's reply", box),
+    h("div", { class: "row" }, h("button", { class: "btn", onclick: () => {
+      try {
+        const r = importPack(box.value);
+        status.replaceChildren(h("p", { class: "note good" },
+          `Brought in ${r.readings} reading${r.readings === 1 ? "" : "s"} and ${r.assignments} assignment${r.assignments === 1 ? "" : "s"}.`,
+          r.skipped.length ? ` Skipped classes I don't track: ${r.skipped.join(", ")}.` : "",
+          r.readings ? " Open a class to turn the readings into lessons." : ""));
+        box.value = "";
+        setTimeout(render, 1400);
+      } catch (e) { status.replaceChildren(h("p", { class: "note bad" }, e.message)); }
+    } }, "Import")), status);
 }
 
 /* ---------- in-browser SQLite for SQL practice ---------- */
@@ -670,7 +767,8 @@ function homeView() {
     const mine = Object.values(state.progress).filter((p) => p.courseKey === key);
     const done = mine.filter((p) => p.done).length;
     const review = mine.reduce((t, p) => t + (p.missed?.length || 0), 0);
-    return [`${done} of ${lessons} lesson${lessons === 1 ? "" : "s"} done`, review ? `${review} to review` : "", state.deadlines.length ? `${n} upcoming` : ""].filter(Boolean).join(" · ");
+    const fresh = state.inbox.filter((r) => r.courseKey === key).length;
+    return [`${done} of ${lessons} lesson${lessons === 1 ? "" : "s"} done`, fresh ? `${fresh} new from Canvas` : "", review ? `${review} to review` : "", state.deadlines.length ? `${n} upcoming` : ""].filter(Boolean).join(" · ");
   };
   const codes = { accounting: "ACCT", sql: "SQL", "language-arts": "LA 3010" };
 
@@ -697,7 +795,7 @@ function homeView() {
             d.courseKey && !d.example ? h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep") : null);
         })) : h("p", { class: "muted" }, "Nothing due in the next 7 days. 🎉"),
         state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null),
-      canvasPanel()));
+      h("div", { style: "display:grid;gap:1.5rem" }, chromePanel(), canvasPanel())));
 }
 
 function canvasPanel() {
@@ -723,7 +821,7 @@ function canvasPanel() {
   const updated = state.deadlines.length ? h("p", { class: "note good", style: "margin:0" }, `✓ ${state.deadlines.length} Canvas due dates loaded. Re-import each week to stay current.`) : null;
 
   return h("section", { class: "panel", "aria-labelledby": "canvas-h" },
-    h("h2", { id: "canvas-h" }, "Connect Canvas"),
+    h("h2", { id: "canvas-h" }, "Due dates only: calendar file"),
     updated,
     h("ol", { class: "steps" },
       h("li", {}, "Open ", h("a", { href: "https://utahtech.instructure.com/calendar", target: "_blank", rel: "noopener" }, "Canvas Calendar"), "."),
@@ -763,13 +861,15 @@ function classView() {
     builtIn.map((l) => item(l.id, l.title, null, () => go("class", state.course, l.id))),
     h("span", { class: "eyebrow" }, "From your Canvas"),
     mine.map((l) => item(l.id, l.title, l.source, () => go("class", state.course, l.id))),
+    state.inbox.filter((r) => r.courseKey === state.course).map((r) => item("inbox-" + r.id, r.title, "New from Canvas: tap to build",
+      () => { state.builder = { reading: r }; go("class", state.course, "inbox-" + r.id); })),
     item("build", "+ Add from Canvas", "PDF or page text", () => { state.builder = null; go("class", state.course, "build"); }),
     upcoming.length ? h("span", { class: "eyebrow" }, "Coming up") : null,
     upcoming.map((d) => item("prep-" + d.id, d.title, new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
       () => { state.builder = { assignment: d }; go("class", state.course, "build"); })));
 
   const stage = h("main", { class: "stage" });
-  if (state.lessonId === "build" || (!state.lessonId && !builtIn.length)) stage.append(builderView());
+  if (state.lessonId === "build" || state.lessonId?.startsWith("inbox-") || (!state.lessonId && !builtIn.length)) stage.append(builderView());
   else {
     const lesson = currentLesson();
     if (lesson) {
@@ -789,17 +889,18 @@ function classView() {
 function builderView() {
   const course = courseOf(state.course);
   const a = state.builder?.assignment;
+  const reading = state.builder?.reading;
   let mode = "pdf";
   let pdfText = "";
   const status = h("div");
-  const title = h("input", { id: "b-title", value: a ? a.title : "", placeholder: course.key === "accounting" ? "e.g. Chapter 4: Adjusting entries" : "e.g. Week 5 reading" });
-  const paste = h("textarea", { id: "b-text", rows: 10, placeholder: "Paste the Canvas page, reading, or assignment instructions here…" }, a?.description || "");
+  const title = h("input", { id: "b-title", value: a ? a.title : reading ? reading.title : "", placeholder: course.key === "accounting" ? "e.g. Chapter 4: Adjusting entries" : "e.g. Week 5 reading" });
+  const paste = h("textarea", { id: "b-text", rows: 10, placeholder: "Paste the Canvas page, reading, or assignment instructions here…" }, a?.description || reading?.text || "");
   const file = h("input", { id: "b-file", type: "file", accept: "application/pdf,.pdf,.txt,text/plain" });
   const fileRow = h("label", { for: "b-file" }, "PDF from Canvas (one chapter works best)", file);
   const pasteRow = h("label", { for: "b-text" }, a ? "Assignment instructions (from Canvas)" : "Text from Canvas", paste);
   const segBtns = ["pdf", "paste"].map((m) => h("button", { type: "button", "aria-pressed": String(m === mode), onclick: () => setMode(m) }, m === "pdf" ? "Upload PDF" : "Paste text"));
   const setMode = (m) => { mode = m; segBtns.forEach((b, i) => b.setAttribute("aria-pressed", String(["pdf", "paste"][i] === m))); fileRow.hidden = m !== "pdf"; pasteRow.hidden = m !== "paste"; };
-  setMode(a ? "paste" : "pdf");
+  setMode(a || reading ? "paste" : "pdf");
 
   file.addEventListener("change", async () => {
     const f = file.files[0];
@@ -834,6 +935,7 @@ function builderView() {
       const rec = { id: "g-" + uid(), courseKey: state.course, title: data.title, source: a ? "assignment prep" : (title.value || "Canvas reading") + (truncatedInput ? " (first part)" : ""), createdAt: new Date().toISOString(), data };
       state.lessons.push(rec);
       saveLessons();
+      if (reading) { state.inbox = state.inbox.filter((x) => x.id !== reading.id); saveInbox(); }
       state.builder = null;
       go("class", state.course, rec.id);
     } catch (e) {
@@ -844,7 +946,8 @@ function builderView() {
 
   const wrap = h("div", { class: "lesson builder" },
     h("span", { class: "eyebrow" }, course.title),
-    h("h1", {}, a ? `Prep: ${a.title}` : "Add from Canvas"),
+    h("h1", {}, a ? `Prep: ${a.title}` : reading ? reading.title : "Add from Canvas"),
+    reading ? h("p", { class: "note good", style: "margin:0" }, `Pulled from Canvas${reading.module ? ` (${reading.module})` : ""} by Claude in Chrome. Press Build lesson to turn it into an interactive lesson.`) : null,
     h("p", { class: "muted", style: "margin:0" }, a
       ? `Due ${new Date(a.due).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Paste the instructions (Canvas usually includes them) and I'll build a lesson on what you need to know to do it well.`
       : "Upload a reading or paste a Canvas page. Claude pulls out the objectives, key points, definitions and practice so you don't have to read everything."),
