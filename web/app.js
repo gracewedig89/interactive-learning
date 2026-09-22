@@ -30,11 +30,13 @@ const guessCourse = (text) => COURSES.find((c) => c.match.test(text))?.key || nu
 
 /* ---------- capabilities ---------- */
 let sample = null;
+let downloads = null;
 let db = null;
 let me = null;
 const ready = (async () => {
   if (!window.claude?.use) return;
   [sample, db] = await Promise.all([claude.use("sample"), claude.use("db")]);
+  downloads = await claude.use("downloads");
   const user = await claude.use("user");
   me = user ? await user.id() : null;
   if (!me) db = null; // no private subtree: keep data in this browser instead
@@ -69,6 +71,7 @@ const state = {
   activity: [],
   builder: null,     // prefill for the lesson builder
   progress: {},      // "course:lessonId" -> completion + missed concepts
+  worksheets: [],    // interactive worksheets: {id, courseKey, title, assignment, instructions, sections, answers}
   inbox: [],         // readings brought in from Claude in Chrome, not built into lessons yet: {id, courseKey, title, text, module}
 };
 
@@ -77,6 +80,7 @@ async function loadState() {
   const [d, l, p] = await Promise.all([store.get("deadlines"), store.get("lessons"), store.get("progress")]);
   state.progress = p?.lessons || {};
   state.inbox = (await store.get("inbox"))?.items || [];
+  state.worksheets = (await store.get("worksheets"))?.items || [];
   state.deadlines = d?.items || [];
   state.lessons = l?.items || [];
   state.chats = local.get("chats") || {};
@@ -84,6 +88,8 @@ async function loadState() {
 const saveDeadlines = () => store.set("deadlines", { items: state.deadlines, updatedAt: new Date().toISOString() });
 let progressTimer;
 const saveProgress = () => { clearTimeout(progressTimer); progressTimer = setTimeout(() => store.set("progress", { lessons: state.progress }), 600); };
+let wsTimer;
+const saveWorksheets = () => { clearTimeout(wsTimer); wsTimer = setTimeout(() => store.set("worksheets", { items: state.worksheets }), 500); };
 const saveInbox = () => store.set("inbox", { items: state.inbox });
 const saveLessons = () => store.set("lessons", { items: state.lessons });
 const saveChats = () => local.set("chats", Object.fromEntries(Object.entries(state.chats).map(([k, v]) => [k, v.slice(-30)])));
@@ -152,21 +158,26 @@ const CHROME_PROMPT = `I'm logged into Utah Tech Canvas (https://utahtech.instru
 My classes: Accounting, SQL (a database class), and Language Arts 3010.
 
 For each class:
-1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed).
-2. Open every reading, page, and PDF in those modules. For each one, write detailed study notes that keep all key concepts, rules, definitions, formulas, and worked examples. Up to about 800 words each, written so someone could learn from them without the original.
-3. Open Assignments (and quizzes and discussions) and list everything due in the next 14 days, with the full instructions.
+1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed). Also check the Announcements from the last 2 weeks for readings or links my teacher wants me to look at.
+2. Open every reading, page, PDF, and outside link (websites, articles, videos with descriptions or transcripts) in those modules and announcements. For each one, write detailed study notes that keep all key concepts, rules, definitions, formulas, and worked examples. Up to about 800 words each, written so someone could learn from them without the original.
+3. Open Assignments and list everything due in the next 14 days, with the full instructions.
+4. If an assignment comes with a worksheet, template, or required layout (usually a PDF or Word file, like a form to fill in or a journal-entry table), describe its layout as fields I need to fill in. Keep the questions and prompts exactly as written. Do NOT fill in any answers.
+5. For quizzes and exams due in the next 14 days, read ONLY the quiz's front page (the part shown BEFORE the "Take the Quiz" button): its instructions, topics or chapters covered, number of questions, time limit, and attempts. Never click "Take the Quiz", "Start", or "Resume", and never open quiz questions. Also include any study guide or practice quiz the teacher posted as a reading.
 
 When you're finished, reply with ONLY one JSON code block in exactly this shape:
 {
-  "studyhub": 1,
+  "studyhub": 2,
   "courses": [
     {
       "course": "course name and code as shown in Canvas",
-      "readings": [{ "module": "module name", "title": "reading title", "notes": "your detailed study notes" }],
-      "assignments": [{ "title": "...", "due": "ISO 8601 date with time zone offset, like 2026-09-24T23:59:00-06:00", "instructions": "full instructions", "url": "link to it in Canvas" }]
+      "readings": [{ "module": "module name", "title": "title", "kind": "page" | "pdf" | "link", "url": "where it lives", "notes": "your detailed study notes" }],
+      "assignments": [{ "title": "...", "due": "ISO 8601 date with time zone offset, like 2026-09-24T23:59:00-06:00", "instructions": "full instructions", "url": "link to it in Canvas" }],
+      "worksheets": [{ "assignment": "title of the assignment it belongs to", "title": "worksheet title", "instructions": "instructions printed on it", "sections": [{ "heading": "section heading", "fields": [{ "label": "the exact question or blank", "type": "short" | "paragraph" | "number" | "journal", "rows": 4 }] }] }],
+      "quizzes": [{ "title": "...", "due": "ISO 8601 with offset", "covers": "topics or chapters listed on the quiz page", "details": "instructions, number of questions, time limit, attempts", "url": "link" }]
     }
   ]
-}`;
+}
+Use "journal" for accounting journal-entry tables (rows = number of blank lines) and leave "rows" out for other types.`;
 
 function parsePack(text) {
   const start = text.indexOf("{");
@@ -180,7 +191,7 @@ function parsePack(text) {
 
 function importPack(text) {
   const pack = parsePack(text);
-  let readings = 0, assignments = 0;
+  let readings = 0, assignments = 0, worksheets = 0, quizzes = 0;
   const skipped = [];
   for (const c of pack.courses) {
     const courseKey = guessCourse(String(c.course || ""));
@@ -189,8 +200,34 @@ function importPack(text) {
       if (!r?.notes || String(r.notes).length < 40) continue;
       const title = String(r.title || "Reading").slice(0, 140);
       state.inbox = state.inbox.filter((x) => !(x.courseKey === courseKey && x.title === title));
-      state.inbox.push({ id: "r-" + uid(), courseKey, title, module: String(r.module || ""), text: String(r.notes).slice(0, 30000), addedAt: new Date().toISOString() });
+      state.inbox.push({ id: "r-" + uid(), courseKey, title, module: String(r.module || ""), kind: String(r.kind || "page"), url: String(r.url || ""),
+        text: String(r.notes).slice(0, 30000), addedAt: new Date().toISOString() });
       readings++;
+    }
+    for (const w of c.worksheets || []) {
+      const sections = (w.sections || []).map((sec) => ({
+        heading: String(sec.heading || ""),
+        fields: (sec.fields || []).filter((f) => f?.label).map((f) => ({
+          id: "f-" + uid(), label: String(f.label), type: ["short", "paragraph", "number", "journal"].includes(f.type) ? f.type : "short",
+          rows: Math.min(Math.max(Number(f.rows) || 4, 1), 20),
+        })),
+      })).filter((sec) => sec.fields.length);
+      if (!sections.length) continue;
+      const title = String(w.title || w.assignment || "Worksheet").slice(0, 160);
+      const old = state.worksheets.find((x) => x.courseKey === courseKey && x.title === title);
+      if (old) { old.sections = sections; old.instructions = String(w.instructions || ""); continue; } // keep answers already typed
+      state.worksheets.push({ id: "w-" + uid(), courseKey, title, assignment: String(w.assignment || ""), instructions: String(w.instructions || ""), sections, answers: {} });
+      worksheets++;
+    }
+    for (const q of c.quizzes || []) {
+      const due = new Date(q?.due);
+      if (!q?.title || isNaN(due)) continue;
+      const title = String(q.title).slice(0, 200);
+      const existing = state.deadlines.find((d) => d.courseKey === courseKey && d.title.toLowerCase() === title.toLowerCase());
+      const rec = { id: existing?.id || "q-" + uid(), kind: "quiz", title, due: due.toISOString(), courseKey, courseLabel: String(c.course || ""),
+        url: String(q.url || ""), covers: String(q.covers || ""), description: String(q.details || "") };
+      if (existing) Object.assign(existing, rec); else state.deadlines.push(rec);
+      quizzes++;
     }
     for (const a of c.assignments || []) {
       const due = new Date(a?.due);
@@ -206,7 +243,8 @@ function importPack(text) {
   state.deadlines.sort((x, y) => new Date(x.due) - new Date(y.due));
   saveDeadlines();
   saveInbox();
-  return { readings, assignments, skipped };
+  saveWorksheets();
+  return { readings, assignments, worksheets, quizzes, skipped };
 }
 
 function chromePanel() {
@@ -229,7 +267,8 @@ function chromePanel() {
       try {
         const r = importPack(box.value);
         status.replaceChildren(h("p", { class: "note good" },
-          `Brought in ${r.readings} reading${r.readings === 1 ? "" : "s"} and ${r.assignments} assignment${r.assignments === 1 ? "" : "s"}.`,
+          `Brought in ${[[r.readings, "reading"], [r.assignments, "assignment"], [r.worksheets, "worksheet"], [r.quizzes, "quiz"]]
+            .filter(([n]) => n).map(([n, w]) => `${n} ${w}${n === 1 ? "" : w === "quiz" ? "zes" : "s"}`).join(", ") || "nothing new"}.`,
           r.skipped.length ? ` Skipped classes I don't track: ${r.skipped.join(", ")}.` : "",
           r.readings ? " Open a class to turn the readings into lessons." : ""));
         box.value = "";
@@ -665,6 +704,7 @@ const tutor = {
       "Keep replies short and skimmable: a few sentences, bullets, or a small markdown table (great for debits/credits and query results).",
       "When they share an answer, say clearly if it's right; if not, point to the specific mistake and why.",
       "For graded assignments, guide them with steps and examples instead of writing the submission for them.",
+      currentWorksheet() ? worksheetContext(currentWorksheet()) : "",
       lesson ? `They're on the lesson "${lesson.title}". Objectives: ${lesson.blocks.find((b) => b.type === "objectives")?.text || ""}` : "",
       state.activity.length ? `What they just did:\n${state.activity.slice(-8).join("\n")}` : "",
       state.course === "sql" ? `Their practice SQLite database:\n${PRACTICE.schema}` : "",
@@ -705,6 +745,180 @@ const tutor = {
     this.draw();
   },
 };
+
+/* ---------- interactive worksheets ---------- */
+const currentWorksheet = () => state.lessonId?.startsWith("ws-") ? state.worksheets.find((w) => "ws-" + w.id === state.lessonId) : null;
+const JOURNAL_COLS = ["Date", "Account", "Debit", "Credit"];
+
+function answerText(f, v) {
+  if (f.type !== "journal") return String(v || "").trim();
+  return (v || []).filter((r) => r?.some((c) => String(c || "").trim()))
+    .map((r) => JOURNAL_COLS.map((c, i) => `${c}: ${r[i] || "-"}`).join(", ")).join("\n");
+}
+
+function worksheetContext(w) {
+  const lines = w.sections.flatMap((sec) => sec.fields.map((f) => `- ${f.label}: ${answerText(f, w.answers[f.id]) || "(blank)"}`));
+  return [
+    `They're filling in the graded worksheet "${w.title}"${w.assignment ? ` for the assignment "${w.assignment}"` : ""}.`,
+    w.instructions ? `Worksheet instructions: ${w.instructions}` : "",
+    `Their answers so far:\n${lines.join("\n")}`,
+    "This is graded homework: give hints, explain the concept, and point out what's wrong in their answers, but never write the answer for a blank. Let them do the filling in.",
+  ].filter(Boolean).join("\n");
+}
+
+function worksheetView(w) {
+  const save = () => saveWorksheets();
+  const filled = () => w.sections.flatMap((s) => s.fields).filter((f) => answerText(f, w.answers[f.id])).length;
+  const total = w.sections.reduce((t, s) => t + s.fields.length, 0);
+  const count = h("span", { class: "muted" }, `${filled()} of ${total} filled in`);
+  const bump = () => { count.textContent = `${filled()} of ${total} filled in`; save(); };
+
+  const field = (f) => {
+    let input;
+    if (f.type === "journal") {
+      const rows = (w.answers[f.id] ||= Array.from({ length: f.rows }, () => ["", "", "", ""]));
+      input = h("div", { class: "scroll" }, h("table", { class: "journal ws-journal" },
+        h("thead", {}, h("tr", {}, JOURNAL_COLS.map((c) => h("th", {}, c)))),
+        h("tbody", {}, rows.map((r, ri) => h("tr", {}, JOURNAL_COLS.map((c, ci) => {
+          const cell = h("input", { id: `${f.id}-${ri}-${ci}`, "aria-label": `${f.label}: row ${ri + 1} ${c}`, value: r[ci] || "", inputmode: ci > 1 ? "decimal" : null, class: ci > 1 ? "mono" : null });
+          cell.addEventListener("input", () => { r[ci] = cell.value; bump(); });
+          return h("td", {}, cell);
+        }))))));
+    } else {
+      input = f.type === "paragraph"
+        ? h("textarea", { id: f.id, rows: 5 }, w.answers[f.id] || "")
+        : h("input", { id: f.id, value: w.answers[f.id] || "", inputmode: f.type === "number" ? "decimal" : null });
+      input.addEventListener("input", () => { w.answers[f.id] = input.value; bump(); });
+    }
+    const ask = (kind) => {
+      const mine = answerText(f, w.answers[f.id]);
+      tutor.ask(kind === "hint"
+        ? `I'm on this part of "${w.title}": "${f.label}". ${mine ? `So far I have: ${mine}. ` : ""}Give me a hint to get started. Don't tell me the answer.`
+        : `Check my answer for "${f.label}" on "${w.title}":\n${mine || "(I haven't written anything yet)"}\nIs it right? If not, tell me what to fix, but let me fix it.`);
+    };
+    return h("div", { class: "ws-field" },
+      h("label", { for: f.type === "journal" ? `${f.id}-0-0` : f.id }, f.label), input,
+      h("div", { class: "row" }, h("button", { class: "btn quiet small", onclick: () => ask("hint") }, "💡 Hint"),
+        h("button", { class: "btn quiet small", onclick: () => ask("check") }, "✓ Check my answer")));
+  };
+
+  const dl = h("button", { class: "btn", onclick: async () => {
+    try {
+      await downloads.save({ filename: `${w.title.replace(/[^\w .-]/g, "").trim() || "worksheet"}.pdf`, data: worksheetPdf(w) });
+    } catch (e) { if (e?.code !== "declined") dlNote.textContent = "Couldn't save the PDF here. Try again in the Claude app or on claude.ai."; }
+  } }, "Download as PDF");
+  const dlNote = h("span", { class: "muted", style: "font-size:.88rem" });
+
+  return h("article", { class: "lesson" },
+    h("span", { class: "eyebrow" }, "Worksheet"),
+    h("h1", {}, w.title),
+    w.assignment ? h("p", { class: "muted", style: "margin:0" }, `For: ${w.assignment}`) : null,
+    h("p", { class: "note", style: "margin:0" }, "Fill in each blank yourself. Tap 💡 Hint when you're stuck or ✓ Check my answer to have the tutor look it over. It won't fill in blanks for you, so the work stays yours."),
+    w.instructions ? h("section", { class: "block objectives" }, h("span", { class: "eyebrow" }, "Instructions"), h("p", {}, w.instructions)) : null,
+    w.sections.map((sec) => h("section", { class: "block" }, sec.heading ? h("h2", {}, sec.heading) : null, sec.fields.map(field))),
+    h("section", { class: "block progress" },
+      h("div", { class: "panel-head" }, h("h2", {}, "When you're done"), count),
+      h("div", { class: "row" },
+        sample ? h("button", { class: "btn quiet", onclick: () => tutor.ask(`I finished "${w.title}". Review all my answers and tell me which ones look wrong and why, without rewriting them for me.`) }, "Review my whole worksheet") : null,
+        downloads ? dl : h("span", { class: "muted" }, "PDF download works when this page is open in Claude."), dlNote),
+      h("p", { class: "muted", style: "margin:0;font-size:.88rem" }, "Then upload the PDF (or copy your answers) to the assignment in Canvas.")));
+}
+
+function worksheetPdf(w) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const M = 54, W = 612 - M * 2;
+  let y = M;
+  const need = (hgt) => { if (y + hgt > 792 - M) { doc.addPage(); y = M; } };
+  const text = (t, size = 11, style = "normal", gap = 4) => {
+    doc.setFont("helvetica", style); doc.setFontSize(size);
+    for (const line of doc.splitTextToSize(String(t), W)) { need(size + gap); doc.text(line, M, y + size); y += size + gap; }
+  };
+  text(w.title, 18, "bold", 6);
+  if (w.assignment) text(`Assignment: ${w.assignment}`, 10, "normal");
+  y += 8;
+  if (w.instructions) { text(w.instructions, 10, "italic"); y += 8; }
+  for (const sec of w.sections) {
+    if (sec.heading) { y += 6; text(sec.heading, 13, "bold", 6); }
+    for (const f of sec.fields) {
+      y += 4;
+      text(f.label, 11, "bold");
+      if (f.type === "journal") {
+        const colW = [70, W - 70 - 160, 80, 80];
+        const rows = (w.answers[f.id] || []).filter((r) => r?.some((c) => String(c || "").trim()));
+        const drawRow = (cells, bold) => {
+          need(18); doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(10);
+          let x = M;
+          cells.forEach((c, i) => { doc.rect(x, y, colW[i], 18); doc.text(doc.splitTextToSize(String(c || ""), colW[i] - 8)[0] || "", i > 1 ? x + colW[i] - 4 : x + 4, y + 13, { align: i > 1 ? "right" : "left" }); x += colW[i]; });
+          y += 18;
+        };
+        drawRow(JOURNAL_COLS, true);
+        (rows.length ? rows : [["", "", "", ""]]).forEach((r) => drawRow(r, false));
+        y += 6;
+      } else {
+        text(answerText(f, w.answers[f.id]) || "(blank)", 11, "normal");
+      }
+    }
+  }
+  return doc.output("blob");
+}
+
+/* ---------- practice tests for upcoming quizzes ---------- */
+function classMaterial(courseKey, limit = 30000) {
+  const parts = [];
+  for (const l of LESSONS[courseKey] || []) parts.push(`Lesson: ${l.title}. ${l.blocks.find((b) => b.type === "objectives")?.text || ""}`);
+  for (const l of state.lessons.filter((x) => x.courseKey === courseKey)) parts.push(`Lesson: ${l.data.title}. ${l.data.objectives} Key points: ${(l.data.keyPoints || []).join("; ")}`);
+  for (const r of state.inbox.filter((x) => x.courseKey === courseKey)) parts.push(`Reading notes: ${r.title}\n${r.text}`);
+  return parts.join("\n\n").slice(0, limit);
+}
+
+function practiceTestView(d) {
+  const course = courseOf(state.course);
+  const status = h("div");
+  const stage = h("div");
+  const start = async () => {
+    const ctl = new AbortController();
+    stage.replaceChildren(h("div", { class: "working" }, h("div", { class: "spinner" }), h("b", {}, `Writing a practice test for “${d.title}”…`),
+      h("p", { class: "muted" }, "Usually 30–90 seconds."), h("button", { class: "btn quiet small", onclick: () => ctl.abort() }, "Stop")));
+    const prompt = [
+      `You are ${course.tutor}. Write a PRACTICE TEST to get a student ready for an upcoming quiz. You have not seen the real quiz; write your own original questions from the topics and course material below.`,
+      `Quiz: ${d.title}, due ${new Date(d.due).toLocaleString()}.`,
+      d.covers ? `The quiz page says it covers: ${d.covers}` : "",
+      d.description ? `Quiz details: ${d.description}` : "",
+      "Write 10-15 multiple-choice questions that mix recall, application, and 'which is NOT' style questions, from easier to harder, each with a hint and an explanation of the reasoning.",
+      state.course === "accounting" ? "Also include 3 debitCredit transactions (debits equal credits)." : "",
+      state.course === "sql" ? `Also include 3 sqlExercises that run in SQLite on:\n${PRACTICE.schema}` : "",
+      "objectives: one paragraph on what this quiz most likely tests and how to study for it. keyPoints: a last-minute review sheet of the must-know facts.",
+      LESSON_SHAPE.replace('"explanation": string}', '"hint": string, "explanation": string}'),
+      `--- COURSE MATERIAL ---\n${classMaterial(state.course) || "(No readings imported yet: base it on the quiz topics.)"}`,
+    ].filter(Boolean).join("\n\n");
+    try {
+      const data = await sample.json(prompt, { signal: ctl.signal, cache: false });
+      if (!data?.quiz?.length) throw { code: "invalid_json" };
+      data.title = `Practice test: ${d.title}`;
+      const rec = { id: "g-" + uid(), courseKey: state.course, title: data.title, source: "practice test", createdAt: new Date().toISOString(), data };
+      state.lessons.push(rec);
+      saveLessons();
+      go("class", state.course, rec.id);
+    } catch (e) {
+      stage.replaceChildren(wrap);
+      status.replaceChildren(h("p", { class: "note bad" }, sampleErrorText(e)));
+    }
+  };
+  const wrap = h("div", { class: "lesson" },
+    h("span", { class: "eyebrow" }, `${course.title} · quiz`),
+    h("h1", {}, d.title),
+    h("p", { class: "muted", style: "margin:0" }, `Due ${new Date(d.due).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`),
+    d.covers || d.description ? h("section", { class: "block objectives" }, h("span", { class: "eyebrow" }, "From the quiz page"), d.covers ? h("p", {}, `Covers: ${d.covers}`) : null, d.description ? h("p", { class: "muted" }, d.description) : null) : null,
+    h("section", { class: "block" },
+      h("h2", {}, "Get ready"),
+      h("p", { style: "margin:0" }, "Claude writes an original practice test from what this quiz covers and your class readings, with hints, explanations, and a review sheet. Your mistakes feed into “Practice what I missed.”"),
+      status,
+      h("div", { class: "row" }, sample ? h("button", { class: "btn", onclick: start }, "Make my practice test") : h("span", { class: "muted" }, "Open this page in Claude to make practice tests."),
+        d.url ? h("a", { href: d.url, target: "_blank", rel: "noopener" }, "Quiz in Canvas ↗") : null)));
+  stage.append(wrap);
+  return stage;
+}
 
 /* ---------- views ---------- */
 const app = $("#app");
@@ -792,7 +1006,9 @@ function homeView() {
           return h("li", {},
             h("span", { class: "day" }, h("b", {}, dt.toLocaleDateString("en-US", { weekday: "short" })), dt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })),
             h("div", {}, h("div", { class: "title" }, d.title), h("div", { class: "row" }, h("span", { class: "muted", style: "font-size:.85rem" }, labelOf(d)), dueChip(d.due))),
-            d.courseKey && !d.example ? h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep") : null);
+            d.courseKey && !d.example ? (d.kind === "quiz"
+              ? h("button", { class: "btn small", onclick: () => go("class", d.courseKey, "quiz-" + d.id) }, "Practice test")
+              : h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep")) : null);
         })) : h("p", { class: "muted" }, "Nothing due in the next 7 days. 🎉"),
         state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null),
       h("div", { style: "display:grid;gap:1.5rem" }, chromePanel(), canvasPanel())));
@@ -851,7 +1067,8 @@ function classView() {
   const course = courseOf(state.course);
   const builtIn = LESSONS[state.course] || [];
   const mine = state.lessons.filter((l) => l.courseKey === state.course);
-  const upcoming = state.deadlines.filter((d) => d.courseKey === state.course && new Date(d.due) > new Date()).slice(0, 5);
+  const upcoming = state.deadlines.filter((d) => d.courseKey === state.course && new Date(d.due) > new Date()).slice(0, 6);
+  const worksheets = state.worksheets.filter((w) => w.courseKey === state.course);
   const item = (id, label, sub, onclick) => h("button", {
     class: `item${state.progress[`${state.course}:${id}`]?.done ? " is-done" : ""}`, "aria-current": state.lessonId === id ? "true" : null, onclick,
   }, label, sub ? h("small", {}, sub) : null);
@@ -864,12 +1081,19 @@ function classView() {
     state.inbox.filter((r) => r.courseKey === state.course).map((r) => item("inbox-" + r.id, r.title, "New from Canvas: tap to build",
       () => { state.builder = { reading: r }; go("class", state.course, "inbox-" + r.id); })),
     item("build", "+ Add from Canvas", "PDF or page text", () => { state.builder = null; go("class", state.course, "build"); }),
+    worksheets.length ? h("span", { class: "eyebrow" }, "Worksheets") : null,
+    worksheets.map((w) => item("ws-" + w.id, w.title, w.assignment || "fill in with the tutor", () => go("class", state.course, "ws-" + w.id))),
     upcoming.length ? h("span", { class: "eyebrow" }, "Coming up") : null,
-    upcoming.map((d) => item("prep-" + d.id, d.title, new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
-      () => { state.builder = { assignment: d }; go("class", state.course, "build"); })));
+    upcoming.map((d) => item((d.kind === "quiz" ? "quiz-" : "prep-") + d.id, d.title,
+      `${d.kind === "quiz" ? "Quiz · " : ""}${new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`,
+      () => { if (d.kind === "quiz") go("class", state.course, "quiz-" + d.id); else { state.builder = { assignment: d }; go("class", state.course, "build"); } })));
 
   const stage = h("main", { class: "stage" });
-  if (state.lessonId === "build" || state.lessonId?.startsWith("inbox-") || (!state.lessonId && !builtIn.length)) stage.append(builderView());
+  const ws = currentWorksheet();
+  const quiz = state.lessonId?.startsWith("quiz-") ? state.deadlines.find((d) => "quiz-" + d.id === state.lessonId) : null;
+  if (ws) stage.append(worksheetView(ws));
+  else if (quiz) stage.append(practiceTestView(quiz));
+  else if (state.lessonId === "build" || state.lessonId?.startsWith("inbox-") || (!state.lessonId && !builtIn.length)) stage.append(builderView());
   else {
     const lesson = currentLesson();
     if (lesson) {
@@ -947,7 +1171,8 @@ function builderView() {
   const wrap = h("div", { class: "lesson builder" },
     h("span", { class: "eyebrow" }, course.title),
     h("h1", {}, a ? `Prep: ${a.title}` : reading ? reading.title : "Add from Canvas"),
-    reading ? h("p", { class: "note good", style: "margin:0" }, `Pulled from Canvas${reading.module ? ` (${reading.module})` : ""} by Claude in Chrome. Press Build lesson to turn it into an interactive lesson.`) : null,
+    reading ? h("p", { class: "note good", style: "margin:0" }, `Pulled from Canvas${reading.module ? ` (${reading.module})` : ""} by Claude in Chrome. Press Build lesson to turn it into a short interactive lesson. `,
+      reading.url ? h("a", { href: reading.url, target: "_blank", rel: "noopener" }, reading.kind === "link" ? "Open the original link ↗" : "Open the original ↗") : null) : null,
     h("p", { class: "muted", style: "margin:0" }, a
       ? `Due ${new Date(a.due).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Paste the instructions (Canvas usually includes them) and I'll build a lesson on what you need to know to do it well.`
       : "Upload a reading or paste a Canvas page. Claude pulls out the objectives, key points, definitions and practice so you don't have to read everything."),

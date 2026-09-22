@@ -15,6 +15,7 @@ const vendor = {
   "purify.min.js": "node_modules/dompurify/dist/purify.min.js",
   "pdf.min.js": "node_modules/pdfjs-dist/build/pdf.min.js",
   "pdf.worker.min.js": "node_modules/pdfjs-dist/build/pdf.worker.min.js",
+  "jspdf.umd.min.js": "node_modules/jspdf/dist/jspdf.umd.min.js",
 };
 for (const [name, src] of Object.entries(vendor)) fs.copyFileSync(new URL(src, root), new URL("vendor/" + name, out));
 
