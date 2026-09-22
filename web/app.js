@@ -160,8 +160,15 @@ function parseIcs(text) {
     .filter((e) => e.due);
 }
 
+// Canvas calendar feeds link to the calendar page; point straight at the assignment instead.
+function directCanvasUrl(url = "") {
+  const m = url.match(/^(https:\/\/[^/]+)\/calendar\?[^#]*include_contexts=course_(\d+)[^#]*#assignment_(\d+)/);
+  return m ? `${m[1]}/courses/${m[2]}/assignments/${m[3]}` : url;
+}
+
 // Re-match classes (new classes get picked up) and spot quizzes/exams by name.
 function normalizeDeadline(x) {
+  x = { ...x, url: directCanvasUrl(x.url) };
   const courseKey = x.courseKey || guessCourse(x.courseLabel || "") || null;
   const kind = x.kind || (/\b(quiz|exam|test|midterm|final)\b/i.test(x.title) && !/\bparticipation\b/i.test(x.title) ? "quiz" : undefined);
   return kind ? { ...x, courseKey, kind } : { ...x, courseKey };
