@@ -101,6 +101,7 @@ label { font-weight: 600; font-size: .9rem; display: grid; gap: .3rem; }
 .class-card h3 { font-size: 1.25rem; }
 .class-card .meta { font-size: .88rem; color: var(--ink-soft); }
 .split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.split.even { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 1.15rem 1.25rem; display: grid; gap: .85rem; }
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .due { list-style: none; margin: 0; padding: 0; display: grid; }

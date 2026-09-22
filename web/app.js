@@ -85,11 +85,12 @@ async function loadState() {
   state.worksheets = (await store.get("worksheets"))?.items || [];
   state.stats = (await store.get("stats")) || { days: {} };
   state.stats.days ||= {};
-  state.deadlines = d?.items || [];
+  state.deadlines = (d?.items || []).map(normalizeDeadline);
+  state.deadlinesUpdatedAt = d?.updatedAt || null;
   state.lessons = l?.items || [];
   state.chats = local.get("chats") || {};
 }
-const saveDeadlines = () => store.set("deadlines", { items: state.deadlines, updatedAt: new Date().toISOString() });
+const saveDeadlines = () => { state.deadlinesUpdatedAt = new Date().toISOString(); return store.set("deadlines", { items: state.deadlines, updatedAt: state.deadlinesUpdatedAt }); };
 let progressTimer;
 const saveProgress = () => { clearTimeout(progressTimer); progressTimer = setTimeout(() => store.set("progress", { lessons: state.progress }), 600); };
 let statsTimer;
@@ -159,8 +160,15 @@ function parseIcs(text) {
     .filter((e) => e.due);
 }
 
+// Re-match classes (new classes get picked up) and spot quizzes/exams by name.
+function normalizeDeadline(x) {
+  const courseKey = x.courseKey || guessCourse(x.courseLabel || "") || null;
+  const kind = x.kind || (/\b(quiz|exam|test|midterm|final)\b/i.test(x.title) && !/\bparticipation\b/i.test(x.title) ? "quiz" : undefined);
+  return kind ? { ...x, courseKey, kind } : { ...x, courseKey };
+}
+
 function importIcs(text) {
-  const events = parseIcs(text);
+  const events = parseIcs(text).map(normalizeDeadline);
   if (!events.length) throw new Error("That file has no calendar events. Make sure it's the .ics file from Canvas Calendar Feed.");
   const cutoff = Date.now() - 2 * 864e5;
   const upcoming = events.filter((e) => new Date(e.due).getTime() > cutoff);
@@ -1440,8 +1448,6 @@ function homeView() {
       h("h1", {}, "What are we learning today?")),
     h("div", { class: "classes" }, COURSES.map((c) => h("button", { class: "class-card", onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) },
       h("span", { class: "code" }, codes[c.key]), h("h3", {}, c.title), h("span", { class: "meta" }, counts(c.key))))),
-    statsPanel(),
-    h("div", { class: "split" },
       h("section", { class: "panel", "aria-labelledby": "due-h" },
         h("div", { class: "panel-head" }, h("h2", { id: "due-h" }, "Due this week"),
           state.deadlines.length ? (week.length ? copyBtn : null) : h("span", { class: "example-tag" }, "Examples: import Canvas to see yours")),
@@ -1454,8 +1460,11 @@ function homeView() {
               ? h("button", { class: "btn small", onclick: () => go("class", d.courseKey, "quiz-" + d.id) }, "Practice test")
               : h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep")) : null);
         })) : h("p", { class: "muted" }, "Nothing due in the next 7 days. 🎉"),
-        state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null),
-      h("div", { style: "display:grid;gap:1.5rem" }, chromePanel(), canvasPanel())));
+        state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null,
+        state.deadlinesUpdatedAt && Date.now() - new Date(state.deadlinesUpdatedAt) > 6 * 864e5
+          ? h("p", { class: "note", style: "margin:0" }, `Your Canvas dates were last updated ${new Date(state.deadlinesUpdatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Re-import (below) so new assignments show up.`) : null),
+    statsPanel(),
+    h("div", { class: "split even" }, chromePanel(), canvasPanel()));
 }
 
 function canvasPanel() {
@@ -1634,3 +1643,17 @@ function builderView() {
 /* ---------- boot ---------- */
 render();
 loadState().then(render);
+
+// Stay on today's date: redraw when the day changes, and pick up fresh data when you come back.
+let shownDay = dayKey();
+const refreshIfNewDay = () => {
+  if (dayKey() === shownDay) return;
+  shownDay = dayKey();
+  loadState().then(() => { if (state.view === "home") render(); });
+};
+setInterval(refreshIfNewDay, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (dayKey() !== shownDay) refreshIfNewDay();
+  else if (state.view === "home") loadState().then(render); // an import on another device shows up here
+});
