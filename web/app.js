@@ -435,14 +435,27 @@ function newTracker(lesson) {
   saved.courseKey ||= state.course;
   if (!Array.isArray(saved.missed)) saved.missed = [];
   saved.title = lesson.title;
+  if (!saved.answers || typeof saved.answers !== "object") saved.answers = {};
+  if (!saved.firstTry || typeof saved.firstTry !== "object") saved.firstTry = {};
   const t = {
-    key, saved, count: 0, solved: new Set(), first: new Map(), listeners: [],
+    key, saved, count: 0, solved: new Set(), first: new Map(), listeners: [], els: new Map(),
     add() { return "i" + this.count++; },
-    attempt(id, ok, miss) {
+    at(id, el) { this.els.set(id, el); return el; },
+    answer(k) { return saved.answers[k]; },
+    // Save what she picked or typed so leaving and coming back keeps her place.
+    record(k, v) { saved.answers[k] = v; saved.updatedAt = new Date().toISOString(); saveProgress(); },
+    attempt(id, ok, miss, restore = false) {
+      if (restore) {
+        // Replaying saved work: show it, but don't count it again.
+        if (!this.first.has(id)) this.first.set(id, saved.firstTry[id] ?? ok);
+        if (ok) this.solved.add(id);
+        this.listeners.forEach((f) => f());
+        return;
+      }
       saved.updatedAt = new Date().toISOString();
       const isFirst = !this.first.has(id);
       bumpStat(state.course, { q: 1, right: ok ? 1 : 0, first: isFirst ? 1 : 0, firstRight: isFirst && ok ? 1 : 0 });
-      if (isFirst) this.first.set(id, ok);
+      if (isFirst) { this.first.set(id, ok); if (saved.firstTry[id] == null) saved.firstTry[id] = ok; }
       if (!ok && miss && !saved.missed.some((m) => m.concept === miss.concept)) {
         saved.missed = [...saved.missed, miss].slice(-20);
       }
@@ -488,17 +501,20 @@ const RENDER = {
         const slot = h("div", { class: "fbslot" });
         const id = track.add();
         let counted = false;
-        const btns = b.categories.map((cat) => h("button", { class: "choice", onclick: (e) => {
+        const choose = (cat, restore) => {
           const ok = cat === item.answer;
-          btns.forEach((x) => x.classList.remove("right", "wrong"));
-          e.currentTarget.classList.add(ok ? "right" : "wrong");
+          btns.forEach((x) => x.classList.toggle("right", ok && x.textContent === cat));
+          btns.forEach((x) => x.classList.toggle("wrong", !ok && x.textContent === cat));
           const miss = { concept: `"${item.label}" is ${item.answer}`, detail: `I sorted "${item.label}" as ${cat}.` };
           slot.replaceChildren(feedback(ok, ok ? item.why : "Try another.", `I thought "${item.label}" was ${cat}. Why is that wrong?`, miss));
-          note(`Sorted "${item.label}" as ${cat} (${ok ? "right" : "wrong"}).`);
-          track.attempt(id, ok, miss);
+          if (!restore) { note(`Sorted "${item.label}" as ${cat} (${ok ? "right" : "wrong"}).`); track.record(id, cat); }
+          track.attempt(id, ok, miss, restore);
           if (ok && !counted) { counted = true; score.textContent = `${++right} / ${b.items.length}`; }
-        } }, cat));
-        return h("div", { class: "sort-row" }, h("b", {}, item.label), h("div", { class: "choices" }, btns), slot);
+        };
+        const btns = b.categories.map((cat) => h("button", { class: "choice", onclick: () => choose(cat, false) }, cat));
+        const row = track.at(id, h("div", { class: "sort-row" }, h("b", {}, item.label), h("div", { class: "choices" }, btns), slot));
+        if (track.answer(id) != null) choose(track.answer(id), true);
+        return row;
       }));
   },
 
@@ -513,7 +529,7 @@ const RENDER = {
         const cr = h("td", { class: "amt" });
         const why = h("div");
         const id = track.add();
-        const btns = ["debit", "credit"].map((side) => h("button", { class: "choice", "aria-label": `${entry.account}: ${side}`, onclick: () => {
+        const pick = (side, restore) => {
           const ok = side === entry.side;
           picks.set(entry, side);
           btns.forEach((x) => x.classList.remove("right", "wrong"));
@@ -526,8 +542,8 @@ const RENDER = {
           const miss = { concept: `${entry.account} is a ${entry.side} in "${row.transaction}"`, detail: `I put ${entry.account} as a ${side}.` };
           why.replaceChildren(feedback(ok, ok ? entry.why : `${entry.account} doesn't go on the ${side} side here.`,
             `For "${row.transaction}", I put ${entry.account} as a ${side}. Why is that wrong?`, miss));
-          note(`"${row.transaction}": ${entry.account} as ${side} (${ok ? "right" : "wrong"}).`);
-          track.attempt(id, ok, miss);
+          if (!restore) { note(`"${row.transaction}": ${entry.account} as ${side} (${ok ? "right" : "wrong"}).`); track.record(id, side); }
+          track.attempt(id, ok, miss, restore);
           if (picks.size === row.entries.length) {
             const all = row.entries.every((e) => picks.get(e) === e.side);
             const sum = (s) => row.entries.filter((e) => e.side === s).reduce((t, e) => t + (e.amount || 0), 0);
@@ -535,8 +551,10 @@ const RENDER = {
               ? h("span", { style: "color: var(--good)" }, `✓ Balanced: debits ${money(sum("debit"))} = credits ${money(sum("credit"))}`)
               : h("span", { style: "color: var(--bad)" }, "Some sides are off. Fix the red ones."));
           }
-        } }, side === "debit" ? "Dr" : "Cr"));
-        body.append(h("tr", {}, h("td", { class: "acct" }, entry.account, why), h("td", { class: "pick" }, btns), dr, cr));
+        };
+        const btns = ["debit", "credit"].map((side) => h("button", { class: "choice", "aria-label": `${entry.account}: ${side}`, onclick: () => pick(side, false) }, side === "debit" ? "Dr" : "Cr"));
+        body.append(track.at(id, h("tr", {}, h("td", { class: "acct" }, entry.account, why), h("td", { class: "pick" }, btns), dr, cr)));
+        if (track.answer(id)) pick(track.answer(id), true);
       }
       body.append(h("tr", {}, status));
     }
@@ -550,21 +568,26 @@ const RENDER = {
     const slot = h("div");
     const id = track.add();
     const hint = q.hint ? h("p", { class: "note", hidden: true }, "💡 ", q.hint) : null;
-    return h("div", { class: "quiz" }, h("b", {}, q.question),
+    const opts = q.options.map((opt, i) => h("button", { class: "choice", onclick: () => choose(i, false) }, opt));
+    const prev = track.answer(id);
+    if (Array.isArray(prev)) queueMicrotask(() => prev.forEach((i) => choose(i, true)));
+    return track.at(id, h("div", { class: "quiz" }, h("b", {}, q.question),
       hint ? h("div", {}, h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint"), hint) : null,
-      h("div", { class: "options" }, q.options.map((opt, i) =>
-      h("button", { class: "choice", onclick: (e) => {
-        const ok = i === q.answerIndex;
-        e.currentTarget.classList.add(ok ? "right" : "wrong");
-        const miss = { concept: q.question, detail: `I picked "${opt}" instead of "${q.options[q.answerIndex]}".` };
-        slot.replaceChildren(feedback(ok, ok ? q.explanation : "Try another option.", `Quiz: "${q.question}" I picked "${opt}". Why is that wrong?`, miss));
-        note(`Quiz "${q.question}": picked "${opt}" (${ok ? "right" : "wrong"}).`);
-        track.attempt(id, ok, miss);
-      } }, opt))), slot);
+      h("div", { class: "options" }, opts), slot));
+    function choose(i, restore) {
+      const ok = i === q.answerIndex, opt = q.options[i];
+      opts[i]?.classList.add(ok ? "right" : "wrong");
+      const miss = { concept: q.question, detail: `I picked "${opt}" instead of "${q.options[q.answerIndex]}".` };
+      slot.replaceChildren(feedback(ok, ok ? q.explanation : "Try another option.", `Quiz: "${q.question}" I picked "${opt}". Why is that wrong?`, miss));
+      if (!restore) { note(`Quiz "${q.question}": picked "${opt}" (${ok ? "right" : "wrong"}).`); track.record(id, [...(track.answer(id) || []), i]); }
+      track.attempt(id, ok, miss, restore);
+    }
   })),
 
   practice: (b) => h("section", { class: "block" }, h("h2", {}, "Explain it back"), b.prompts.map((p, i) => {
-    const box = h("textarea", { rows: 4, id: `practice-${i}`, placeholder: "Answer in your own words…" });
+    const key = "practice:" + p.slice(0, 80);
+    const box = h("textarea", { rows: 4, id: `practice-${i}`, placeholder: "Answer in your own words…" }, track.answer(key) || "");
+    box.addEventListener("input", () => track.record(key, box.value));
     return h("div", { class: "quiz" }, h("label", { for: `practice-${i}` }, p), box,
       h("div", {}, h("button", { class: "btn small", onclick: () => box.value.trim() &&
         tutor.ask(`Practice question: "${p}"\n\nMy answer: ${box.value.trim()}\n\nIs this right? What am I missing?`) }, "Check with the tutor")));
@@ -595,10 +618,13 @@ const RENDER = {
     const hint = task.hint ? h("p", { class: "note", hidden: true }, "💡 ", task.hint) : null;
     let tries = 0;
     const reveal = h("button", { class: "linkish", hidden: true, onclick: () => { editor.value = task.solution; out.replaceChildren(stepsPanel(task.solution, "How the answer works, one step at a time")); } }, "Show an answer and how it works");
-    const run = async () => {
+    const saved = track.answer(tid);
+    if (saved?.q) { editor.value = saved.q; tries = saved.tries || 0; }
+    editor.addEventListener("input", () => track.record(tid, { q: editor.value, tries }));
+    const run = async (restore = false) => {
       const q = editor.value.trim();
       if (!q) return;
-      tries++;
+      if (!restore) { tries++; track.record(tid, { q: editor.value, tries, ran: true }); }
       let want;
       try { want = await runQuery(task.solution); } catch { want = { columns: [], rows: [] }; }
       try {
@@ -619,21 +645,23 @@ const RENDER = {
               h("summary", {}, `The result you're aiming for (${want.rows.length} row${want.rows.length === 1 ? "" : "s"})`),
               resultTable(want, diff.missing)) : null),
           h("details", { class: "steps-toggle" }, h("summary", {}, ok ? "See how your query works, step by step" : "See what your query does, step by step"), stepsPanel(q)));
-        note(`SQL "${task.prompt}": \`${q}\` (${ok ? "right" : "wrong"}).`);
-        track.attempt(tid, ok, miss);
+        if (!restore) note(`SQL "${task.prompt}": \`${q}\` (${ok ? "right" : "wrong"}).`);
+        track.attempt(tid, ok, miss, restore);
       } catch (e) {
         const tip = sqlErrorTip(e.message);
         out.replaceChildren(h("div", { class: "fb bad" }, h("b", {}, "SQL error: "), e.message, tip ? h("p", { style: "margin:.35rem 0 0" }, "💡 ", tip) : null,
           h("button", { class: "linkish", onclick: () => tutor.ask(`Task: "${task.prompt}"\nMy query:\n${q}\nError: ${e.message}\nWhat does this mean and how do I fix it?`) }, "Ask the tutor")));
-        note(`SQL "${task.prompt}": error ${e.message}`);
-        track.attempt(tid, false, { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` });
+        if (!restore) note(`SQL "${task.prompt}": error ${e.message}`);
+        track.attempt(tid, false, { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` }, restore);
       }
       if (tries >= 2) reveal.hidden = false;
     };
     editor.addEventListener("keydown", (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter" && run());
-    return h("div", { class: "sql-task" }, h("label", { for: id }, `${n + 1}. ${task.prompt}`),
+    if (saved?.ran) queueMicrotask(() => run(true));
+    if (tries >= 2) reveal.hidden = false;
+    return track.at(tid, h("div", { class: "sql-task" }, h("label", { for: id }, `${n + 1}. ${task.prompt}`),
       hint ? h("div", {}, h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint"), hint) : null, editor,
-      h("div", { class: "row" }, h("button", { class: "btn small", onclick: run }, "Run ▸"), h("span", { class: "muted" }, "Ctrl/⌘ + Enter"), reveal), out);
+      h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => run() }, "Run ▸"), h("span", { class: "muted" }, "Ctrl/⌘ + Enter"), reveal), out));
   })),
 
   statements: (b) => statementBuilder(b),
@@ -857,7 +885,8 @@ function statementBuilder(b) {
     const picks = new Map();
     const T = statementTotals(data.accounts);
     const preview = h("div", { class: "fs-grid" });
-    const totals = {};
+    const sk = (k) => `st:${data.company}:${k}`; // saved-answer keys for this company
+    const totals = Object.fromEntries(["ni", "re", "ta", "tl", "te", "tle"].map((k) => [k, track.answer(sk("tot:" + k)) || ""]).filter(([, v]) => v));
     const carry = {}; // cells that show a total carried to the next statement
     const totalIds = new Map();
 
@@ -872,11 +901,11 @@ function statementBuilder(b) {
         const v = num(inp.value);
         totals[key] = inp.value;
         if (v == null || (!silent && v === lastChecked)) return;
-        if (!silent) lastChecked = v;
+        if (!silent) { lastChecked = v; track.record(sk("tot:" + key), inp.value); }
         const ok = v === correct;
         const miss = { concept: `${label} for ${data.company}`, detail: `I entered ${money(v)}. How to get it: ${howTo}.` };
         fb.replaceChildren(feedback(ok, ok ? howTo : `Not ${money(v)}. ${howTo}.`, `On ${data.company}'s statements I got ${label} = ${money(v)}. How do I work it out? Don't just give me the number.`, miss));
-        if (!silent) track.attempt(tid, ok, miss);
+        track.attempt(tid, ok, miss, silent);
         if (carry[key]) carry[key].textContent = ok ? money(v) : "";
       };
       inp.addEventListener("change", () => check());
@@ -920,17 +949,19 @@ function statementBuilder(b) {
       const sel = h("select", { id: `pl-${uid()}`, "aria-label": `Where does ${a.name} go?` }, PLACES.map(([v, t]) => h("option", { value: v }, t)));
       const fb = h("div", { class: "fbslot" });
       const tid = track.add();
-      sel.addEventListener("change", () => {
+      const place = (restore) => {
         if (!sel.value) return;
         picks.set(a, sel.value);
         const ok = sel.value === placeOf(a);
         const miss = { concept: `Where ${a.name} goes on the financial statements`, detail: `I put it under "${PLACES.find((p) => p[0] === sel.value)[1]}".` };
         fb.replaceChildren(feedback(ok, ok ? PLACE_WHY[placeOf(a)] : "Try another spot.", `Why doesn't ${a.name} go under "${PLACES.find((p) => p[0] === sel.value)[1]}"?`, miss));
-        note(`Placed ${a.name} under ${sel.value} (${ok ? "right" : "wrong"}).`);
-        track.attempt(tid, ok, miss);
-        renderPreview();
-      });
-      return h("tr", {}, h("td", {}, a.name, fb), h("td", { class: "amt" }, money(a.balance)), h("td", {}, sel));
+        if (!restore) { note(`Placed ${a.name} under ${sel.value} (${ok ? "right" : "wrong"}).`); track.record(sk(a.name), sel.value); }
+        track.attempt(tid, ok, miss, restore);
+        if (!restore) renderPreview();
+      };
+      sel.addEventListener("change", () => place(false));
+      if (track.answer(sk(a.name))) { sel.value = track.answer(sk(a.name)); place(true); }
+      return track.at(tid, h("tr", {}, h("td", {}, a.name, fb), h("td", { class: "amt" }, money(a.balance)), h("td", {}, sel)));
     });
 
     box.replaceChildren(
@@ -943,7 +974,7 @@ function statementBuilder(b) {
       h("p", { class: "muted", style: "margin:0;font-size:.88rem" }, "The balance sheet balances when total assets = total liabilities + equity. If yours doesn't, look for an account in the wrong spot."));
     renderPreview();
   };
-  draw(b);
+  draw(track.answer("st:company") || b); // a generated practice company is remembered too
   return box;
 }
 
@@ -966,7 +997,9 @@ Use "re" only for beginning Retained Earnings and "equity" only for Common Stock
       if (!cash || cash.balance + gap <= 0) throw { code: "invalid_json" };
       cash.balance += gap;
     }
-    draw({ company: String(data.company || "Practice Company"), period: String(data.period || "year ended December 31"), accounts: accts });
+    const co = { company: String(data.company || "Practice Company"), period: String(data.period || "year ended December 31"), accounts: accts };
+    track.record("st:company", co);
+    draw(co);
   } catch (e) {
     alertNote(sampleErrorText(e));
   }
@@ -985,10 +1018,36 @@ function renderLesson(lesson) {
   const article = h("article", { class: "lesson" },
     h("div", { class: "row" }, h("h1", { style: "flex:1" }, lesson.title), done ? h("span", { class: "chip done" }, "✓ Completed") : null),
     lesson.blocks.map((b) => RENDER[b.type]?.(b)));
+  track.base = track.count; // items after this belong to the extra practice set
   practice.area = h("div", { class: "lesson", id: "extra-practice" });
   article.append(practice.area, progressBlock());
   if (track.saved.practice) practice.show(track.saved.practice, false);
+  const banner = resumeBanner();
+  if (banner) article.querySelector("h1").parentElement.after(banner);
   return article;
+}
+
+const itemNum = (id) => Number(String(id).slice(1));
+// "Welcome back" for a lesson in progress, "review your work" for a finished one.
+function resumeBanner() {
+  const t = track, saved = t.saved;
+  const answered = Object.keys(saved.answers || {}).length;
+  if (!answered) return null;
+  const jump = () => {
+    const open = [...t.els.entries()].filter(([id]) => !t.solved.has(id)).sort((a, b) => itemNum(a[0]) - itemNum(b[0]))[0];
+    (open?.[1] || document.querySelector(".progress"))?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const fresh = () => {
+    saved.answers = {}; saved.firstTry = {}; saved.solved = 0; saved.updatedAt = new Date().toISOString();
+    saveProgress();
+    go("class", state.course, state.lessonId);
+  };
+  return saved.done
+    ? h("p", { class: "note good resume", style: "margin:0" }, "✓ You finished this lesson. Your answers are saved below so you can review them. ",
+        h("button", { class: "linkish", onclick: fresh }, "Start fresh and redo it"))
+    : h("p", { class: "note resume", style: "margin:0" }, "Welcome back! Your answers are saved. ",
+        h("button", { class: "btn small", onclick: jump }, "Jump to where I left off"), " ",
+        h("button", { class: "linkish", onclick: fresh }, "Start over"));
 }
 
 function progressBlock() {
@@ -1045,6 +1104,8 @@ const practice = {
     try {
       const set = await sample.json(prompt, { signal: ctl.signal, cache: false });
       if (!set?.quiz && !set?.debitCredit && !set?.sqlExercises) throw { code: "invalid_json" };
+      // Clear saved answers from the previous practice set before showing the new one.
+      for (const k of Object.keys(track.saved.answers)) if (/^i\d+$/.test(k) && itemNum(k) >= track.base) { delete track.saved.answers[k]; delete track.saved.firstTry[k]; }
       track.saved.practice = set;
       track.saved.updatedAt = new Date().toISOString();
       bumpStat(state.course, { practice: 1 });
@@ -1055,6 +1116,9 @@ const practice = {
     }
   },
   show(set, scroll) {
+    // A new set reuses the item numbers after the lesson, so forget the old set's items.
+    for (const id of [...track.els.keys()]) if (itemNum(id) >= track.base) { track.els.delete(id); track.solved.delete(id); track.first.delete(id); }
+    track.count = track.base;
     const blocks = [];
     if (set.debitCredit?.length) blocks.push({ type: "debitCredit", title: "Practice: debit or credit?", rows: set.debitCredit });
     if (set.sqlExercises?.length) blocks.push({ type: "sql", title: "Practice queries", tasks: set.sqlExercises });
@@ -2166,6 +2230,23 @@ function thisWeek() {
   return state.deadlines.filter((d) => { const t = new Date(d.due).getTime(); return t > Date.now() - 864e5 && t < end; });
 }
 
+function resumePanel() {
+  const open = Object.entries(state.progress)
+    .filter(([k, p]) => !p.done && Object.keys(p.answers || {}).length && COURSES.some((c) => k.startsWith(c.key + ":")))
+    .sort((a, b) => (b[1].updatedAt || "").localeCompare(a[1].updatedAt || "")).slice(0, 3);
+  if (!open.length) return null;
+  return h("section", { class: "panel" }, h("h2", {}, "Pick up where you left off"),
+    h("ul", { class: "due" }, open.map(([k, p]) => {
+      const [course, ...rest] = k.split(":");
+      const lessonId = rest.join(":");
+      const total = p.total || 0, solved = p.solved || 0;
+      return h("li", {},
+        h("span", { class: "day" }, h("b", {}, courseOf(course).title.split(" ")[0]), p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""),
+        h("div", {}, h("div", { class: "title" }, p.title || "Lesson"), total ? h("div", { class: "bar", style: "margin-top:.35rem;max-width:240px" }, h("span", { style: `width:${Math.round((solved / total) * 100)}%` })) : null),
+        h("button", { class: "btn small", onclick: () => go("class", course, lessonId) }, "Continue"));
+    })));
+}
+
 function homeView() {
   const week = thisWeek();
   const showing = state.deadlines.length ? week : EXAMPLES;
@@ -2208,6 +2289,7 @@ function homeView() {
         state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null,
         state.deadlinesUpdatedAt && Date.now() - new Date(state.deadlinesUpdatedAt) > 6 * 864e5
           ? h("p", { class: "note", style: "margin:0" }, `Your Canvas dates were last updated ${new Date(state.deadlinesUpdatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Re-import (below) so new assignments show up.`) : null),
+    resumePanel(),
     statsPanel(),
     h("div", { class: "split even" }, chromePanel(), canvasPanel()));
 }
