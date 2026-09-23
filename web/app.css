@@ -330,3 +330,26 @@ table.ref td:first-child { font-weight: 650; }
   .journal .amt { width: auto; }
   h1 { font-size: 1.6rem; }
 }
+
+/* Each class has its own sparkle: Accounting pink, SQL turquoise, Language Arts periwinkle, Biology green. */
+[data-course="accounting"] { --sparkle: linear-gradient(135deg, #ffc2e6 0%, #ff6fb5 45%, #f24c9f 70%, #ffd0ec 100%); --glow: 0 2px 10px rgb(255 95 174 / .38); --accent: #b3165f; --accent-ink: #4a0a2c; --accent-soft: #fde3f1; }
+[data-course="sql"] { --sparkle: linear-gradient(135deg, #5ff0e0 0%, #19c7c4 45%, #0fb2c9 70%, #6ee7f5 100%); --glow: 0 2px 10px rgb(25 199 196 / .35); --accent: #0a7c84; --accent-ink: #042f33; --accent-soft: #d9f6f3; }
+[data-course="language-arts"] { --sparkle: linear-gradient(135deg, #e2e6ff 0%, #aab5ff 45%, #8f9dff 70%, #e6e9ff 100%); --glow: 0 2px 10px rgb(143 157 255 / .4); --accent: #4652c4; --accent-ink: #1b2160; --accent-soft: #e8ebff; }
+[data-course="biology"] { --sparkle: linear-gradient(135deg, #c4f7d0 0%, #5ad883 45%, #33c068 70%, #d2f9dc 100%); --glow: 0 2px 10px rgb(51 192 104 / .38); --accent: #1d7a3e; --accent-ink: #0b3a1c; --accent-soft: #dff6e6; }
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) [data-course="accounting"] { --accent: #ff8cc8; --accent-soft: #3a1a2b; --glow: 0 2px 14px rgb(255 140 200 / .35); }
+:root:not([data-theme="light"]) [data-course="sql"] { --accent: #4fe3d8; --accent-soft: #123634; --glow: 0 2px 14px rgb(79 227 216 / .35); }
+:root:not([data-theme="light"]) [data-course="language-arts"] { --accent: #b3bcff; --accent-soft: #22264a; --glow: 0 2px 14px rgb(179 188 255 / .35); }
+:root:not([data-theme="light"]) [data-course="biology"] { --accent: #7fe3a0; --accent-soft: #173522; --glow: 0 2px 14px rgb(127 227 160 / .35); }
+}
+:root[data-theme="dark"] [data-course="accounting"] { --accent: #ff8cc8; --accent-soft: #3a1a2b; --glow: 0 2px 14px rgb(255 140 200 / .35); }
+:root[data-theme="dark"] [data-course="sql"] { --accent: #4fe3d8; --accent-soft: #123634; --glow: 0 2px 14px rgb(79 227 216 / .35); }
+:root[data-theme="dark"] [data-course="language-arts"] { --accent: #b3bcff; --accent-soft: #22264a; --glow: 0 2px 14px rgb(179 188 255 / .35); }
+:root[data-theme="dark"] [data-course="biology"] { --accent: #7fe3a0; --accent-soft: #173522; --glow: 0 2px 14px rgb(127 227 160 / .35); }
+.btn:hover:not(:disabled) { box-shadow: 0 4px 18px var(--accent-soft), var(--glow); }
+.class-card { position: relative; overflow: hidden; }
+.class-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--sparkle); }
+.class-card .code { color: var(--accent); }
+.class-card:hover { border-color: var(--accent); box-shadow: var(--glow); }
+.tab[data-course][aria-current="page"] { background: var(--sparkle); color: var(--accent-ink); box-shadow: var(--glow); }
+.tab[data-course]:not([aria-current="page"]):hover { background: var(--accent-soft); color: var(--accent); }

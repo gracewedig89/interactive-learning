@@ -2198,13 +2198,15 @@ function topbar() {
   return h("header", { class: "topbar" },
     h("button", { class: "brand", onclick: () => go("home") }, h("span", { class: "mark", "aria-hidden": "true" }, "UT"), "Study Hub"),
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
-      h("button", { class: "tab", "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
+      h("button", { class: "tab", "data-course": c.key, "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
       h("button", { class: "tab", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
       h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")));
 }
 
 function render() {
   document.body.classList.remove("tutor-open");
+  if (state.view === "class" && COURSES.some((c) => c.key === state.course)) document.body.dataset.course = state.course;
+  else delete document.body.dataset.course;
   document.body.querySelector(".fab")?.remove();
   app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "explore" ? exploreView() : classView());
   document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar")?.offsetHeight || 56}px`);
@@ -2240,7 +2242,7 @@ function resumePanel() {
       const [course, ...rest] = k.split(":");
       const lessonId = rest.join(":");
       const total = p.total || 0, solved = p.solved || 0;
-      return h("li", {},
+      return h("li", { "data-course": course },
         h("span", { class: "day" }, h("b", {}, courseOf(course).title.split(" ")[0]), p.updatedAt ? new Date(p.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""),
         h("div", {}, h("div", { class: "title" }, p.title || "Lesson"), total ? h("div", { class: "bar", style: "margin-top:.35rem;max-width:240px" }, h("span", { style: `width:${Math.round((solved / total) * 100)}%` })) : null),
         h("button", { class: "btn small", onclick: () => go("class", course, lessonId) }, "Continue"));
@@ -2271,14 +2273,14 @@ function homeView() {
   return h("main", { class: "home" },
     h("div", { class: "hello" }, h("span", { class: "eyebrow" }, new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })),
       h("h1", {}, "What are we learning today?")),
-    h("div", { class: "classes" }, COURSES.map((c) => h("button", { class: "class-card", onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) },
+    h("div", { class: "classes" }, COURSES.map((c) => h("button", { class: "class-card", "data-course": c.key, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) },
       h("span", { class: "code" }, codes[c.key]), h("h3", {}, c.title), h("span", { class: "meta" }, counts(c.key))))),
       h("section", { class: "panel", "aria-labelledby": "due-h" },
         h("div", { class: "panel-head" }, h("h2", { id: "due-h" }, "Due this week"),
           state.deadlines.length ? (week.length ? copyBtn : null) : h("span", { class: "example-tag" }, "Examples: import Canvas to see yours")),
         showing.length ? h("ul", { class: "due" }, showing.map((d) => {
           const dt = new Date(d.due);
-          return h("li", {},
+          return h("li", { "data-course": d.courseKey || null },
             h("span", { class: "day" }, h("b", {}, dt.toLocaleDateString("en-US", { weekday: "short" })), dt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })),
             h("div", {}, h("div", { class: "title" }, d.title), h("div", { class: "row" }, h("span", { class: "muted", style: "font-size:.85rem" }, labelOf(d)), dueChip(d.due))),
             d.kind === "scholarship" ? h("button", { class: "btn small", onclick: () => go("scholarships", null, d.scholarshipId) }, "Work on it") :
