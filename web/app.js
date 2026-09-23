@@ -59,13 +59,28 @@ function celebrationsOn() { try { return localStorage.getItem("studyhub:celebrat
 function celebrate() {
   if (celebrating || !celebrationsOn()) return;
   celebrating = true;
-  const monkey = Math.random() < 0.4;
-  const cheer = (monkey ? "😜 " : "😉 ") + CHEERS[Math.floor(Math.random() * CHEERS.length)];
-  const fx = window.FX ? FX.play(monkey ? "monkey" : "unicorn", cheer) : Promise.resolve(false);
-  fx.then((ok) => { if (ok) celebrating = false; else flatCelebrate(monkey, cheer); });
+  const animal = nextAnimal();
+  const monkey = animal === "monkey";
+  const cheer = `${window.FX?.emoji[animal] || "😉"} ${CHEERS[Math.floor(Math.random() * CHEERS.length)]} 😉`;
+  const fx = window.FX ? FX.play(animal, cheer) : Promise.resolve(false);
+  fx.then((ok) => { if (ok) celebrating = false; else flatCelebrate(monkey, cheer, window.FX?.emoji[animal]); });
+}
+// A different animal every time: go through the whole zoo in a shuffled order before any repeats.
+function nextAnimal() {
+  const all = window.FX?.animals || ["unicorn", "monkey"];
+  let z;
+  try { z = JSON.parse(localStorage.getItem("studyhub:zoo")) || {}; } catch { z = {}; }
+  if (!Array.isArray(z.bag) || !z.bag.length || z.bag.some((a) => !all.includes(a))) {
+    z.bag = [...all].sort(() => Math.random() - 0.5);
+    if (z.bag[0] === z.last && z.bag.length > 1) z.bag.push(z.bag.shift());
+  }
+  const a = z.bag.shift();
+  z.last = a;
+  try { localStorage.setItem("studyhub:zoo", JSON.stringify(z)); } catch {}
+  return a;
 }
 // The 2D version, for when 3D can't run.
-function flatCelebrate(monkey, cheer) {
+function flatCelebrate(monkey, cheer, emoji) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const drops = reduced ? [] : Array.from({ length: 26 }, () => {
     const d = h("span", { class: "gumdrop" });
@@ -80,18 +95,18 @@ function flatCelebrate(monkey, cheer) {
     drops,
     h("div", { class: "stage-pop" },
       h("div", { class: "rainbow" }),
-      h("div", { class: `dancer ${monkey ? "monkey" : "unicorn"}` }, monkey ? "🐒" : "🦄"),
+      h("div", { class: `dancer ${monkey ? "monkey" : "unicorn"}` }, emoji || (monkey ? "🐒" : "🦄")),
       monkey ? h("div", { class: "prop" }, "🍌") : null,
       h("div", { class: "bubble" }, cheer)));
   document.body.append(el);
   setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
 }
 // Wrong answer: a very grumpy (cartoon) monster.
-const GROWLS = ["GRRR! Try again!", "RAWR! Not quite!", "Grr… so close!", "HMPH! One more try!", "ROAR! Check that one again!"];
+const GROWLS = ["GRRRRR!! Try again!", "RAAAWR!! Not quite!", "GRAAAH! Check that one!", "HMPH!! One more try!", "ROOOAR!! So close!"];
 function grumble() {
   if (celebrating || !celebrationsOn()) return;
   celebrating = true;
-  const text = "😤 " + GROWLS[Math.floor(Math.random() * GROWLS.length)];
+  const text = ["😡 ", "💢 ", "😤 ", "🤬 "][Math.floor(Math.random() * 4)] + GROWLS[Math.floor(Math.random() * GROWLS.length)];
   const fx = window.FX ? FX.play("monster", text) : Promise.resolve(false);
   fx.then((ok) => {
     if (ok) { celebrating = false; return; }
