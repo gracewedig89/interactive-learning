@@ -2398,6 +2398,7 @@ function showOops(msg) {
   document.body.append(h("div", { class: "oops", role: "alert" },
     h("b", {}, "Something went wrong. "), "Refresh the page to try again. If it keeps happening, tell Claude this message: ", h("code", {}, String(msg).slice(0, 200)),
     h("button", { class: "linkish", onclick: (e) => e.currentTarget.parentElement.remove() }, "Dismiss")));
+  setTimeout(() => document.querySelector(".oops")?.remove(), 15000); // never leave it sitting over the page
 }
 
 /* ---------- boot ---------- */

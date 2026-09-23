@@ -269,7 +269,7 @@ table.ref td:first-child { font-weight: 650; }
 .cname { background: var(--sunken); color: var(--ink); border: 1px solid transparent; }
 .cname:hover, .tname:hover { border-color: var(--accent); }
 .dock-tip { margin: .2rem 0 0; font-size: .75rem; font-family: var(--body); }
-.oops { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 50; max-width: 640px; margin: 0 auto; background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); border-radius: 10px; padding: .75rem 1rem; box-shadow: 0 8px 24px rgb(0 0 0 / .2); font-size: .92rem; display: grid; gap: .35rem; }
+.oops { position: fixed; left: 16px; right: 16px; top: calc(var(--topbar-h, 56px) + 8px); z-index: 50; max-width: 640px; margin: 0 auto; background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); border-radius: 10px; padding: .75rem 1rem; box-shadow: 0 8px 24px rgb(0 0 0 / .2); font-size: .92rem; display: grid; gap: .35rem; }
 .oops code { color: var(--ink); overflow-wrap: anywhere; }
 .xview { grid-template-columns: 280px minmax(0, 1fr); }
 .xstage { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h, 56px)); padding-bottom: 1rem; max-width: 900px; }
