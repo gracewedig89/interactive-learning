@@ -51,6 +51,37 @@ const ready = (async () => {
   if (!me) db = null; // no private subtree: keep data in this browser instead
 })();
 
+/* ---------- celebrations: a dancing unicorn or monkey for every right answer ---------- */
+const CHEERS = ["Nailed it!", "Yesss!", "You got it!", "So smart!", "Correct!", "Boom!", "Look at you go!", "Perfect!"];
+const GUMDROP_COLORS = ["#ff6fb5", "#ffd84d", "#5fe0d0", "#9f8cff", "#7fe3a0", "#ff9a5c", "#ff5c7a"];
+let celebrating = false;
+function celebrationsOn() { try { return localStorage.getItem("studyhub:celebrate") !== "off"; } catch { return true; } }
+function celebrate() {
+  if (celebrating || !celebrationsOn()) return;
+  celebrating = true;
+  const monkey = Math.random() < 0.4;
+  const cheer = CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const drops = reduced ? [] : Array.from({ length: 26 }, () => {
+    const d = h("span", { class: "gumdrop" });
+    d.style.left = `${Math.random() * 100}%`;
+    d.style.background = GUMDROP_COLORS[Math.floor(Math.random() * GUMDROP_COLORS.length)];
+    d.style.animationDelay = `${Math.random() * 0.9}s`;
+    d.style.animationDuration = `${1.4 + Math.random() * 0.9}s`;
+    d.style.setProperty("--spin", `${Math.random() < 0.5 ? -1 : 1}turn`);
+    return d;
+  });
+  const el = h("div", { class: `celebrate${reduced ? " still" : ""}`, "aria-hidden": "true" },
+    drops,
+    h("div", { class: "stage-pop" },
+      h("div", { class: "rainbow" }),
+      h("div", { class: `dancer ${monkey ? "monkey" : "unicorn"}` }, monkey ? "🐒" : "🦄"),
+      monkey ? h("div", { class: "prop" }, "🍌") : null,
+      h("div", { class: "bubble" }, monkey ? "😜 " : "😉 ", cheer)));
+  document.body.append(el);
+  setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
+}
+
 /* ---------- storage: private db docs, falling back to this browser ---------- */
 const local = {
   get(k) { try { return JSON.parse(localStorage.getItem("studyhub:" + k)); } catch { return null; } },
@@ -512,6 +543,7 @@ function newTracker(lesson) {
       if (!ok && miss && !saved.missed.some((m) => m.concept === miss.concept)) {
         saved.missed = [...saved.missed, miss].slice(-20);
       }
+      if (ok && !this.solved.has(id)) celebrate();
       if (ok) this.solved.add(id);
       saved.total = this.count;
       saved.solved = Math.max(saved.solved || 0, this.solved.size);
@@ -2550,7 +2582,10 @@ function topbar() {
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
       h("button", { class: "tab", "data-course": c.key, "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
       h("button", { class: "tab", "data-course": "explore", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
-      h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")));
+      h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")),
+    h("button", { class: "linkish cheer-toggle", "aria-pressed": String(celebrationsOn()), title: "Dancing unicorn when you get something right",
+      onclick: (e) => { const on = !celebrationsOn(); try { localStorage.setItem("studyhub:celebrate", on ? "on" : "off"); } catch {} e.currentTarget.setAttribute("aria-pressed", String(on)); e.currentTarget.textContent = on ? "🦄 Party on" : "🦄 Party off"; if (on) celebrate(); } },
+      celebrationsOn() ? "🦄 Party on" : "🦄 Party off"));
 }
 
 function render() {
