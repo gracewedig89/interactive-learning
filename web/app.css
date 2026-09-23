@@ -441,10 +441,51 @@ body[data-course] .classview > .stage {
 }
 :root[data-theme="dark"] [data-course="explore"] { --accent: #f2c79a; --accent-soft: #3a291f; --glow: 0 2px 14px rgb(242 199 154 / .38); --stage-bg: #2f231d;
   --stage-sheen: linear-gradient(135deg, rgb(233 169 140 / .16) 0%, rgb(242 207 120 / .10) 45%, rgb(200 208 218 / .14) 100%); }
-/* Explore pages aren't all class layouts, so tint the whole page and keep the sidebar and tutor neutral. */
-body[data-course="explore"] { background: radial-gradient(circle at 15% 10%, rgb(255 255 255 / .18), transparent 30%), var(--stage-sheen), var(--stage-bg); background-attachment: fixed; }
+/* Explore: a sparkly gold sea behind the page that ripples as you move, tap, and scroll. */
+body[data-course="explore"] { background: #f3cf63; }
+body[data-course="explore"] #app { position: relative; z-index: 1; }
 body[data-course="explore"] .classview > .stage { background: none; }
 body[data-course="explore"] .side { background: var(--ground); }
+body[data-course="explore"] :is(.hello, .xhead, .lesson > .row h1, .lesson > h1, .lesson > .eyebrow, .lesson > span.eyebrow) { color: #2b1c00; }
+body[data-course="explore"] :is(.hello, .xhead) .eyebrow { color: #5c3f00; }
+.gold-sea { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background: linear-gradient(135deg, #fff1c4 0%, #f7d774 22%, #eab93c 45%, #f8dc84 65%, #e9b640 82%, #fff0bd 100%); }
+.gold-sea .caustic { position: absolute; inset: -30%; mix-blend-mode: soft-light; opacity: .9;
+  background:
+    radial-gradient(ellipse 18% 11% at 20% 30%, #fff 0, transparent 70%),
+    radial-gradient(ellipse 14% 9% at 62% 22%, #fff 0, transparent 70%),
+    radial-gradient(ellipse 22% 12% at 42% 64%, #fff 0, transparent 70%),
+    radial-gradient(ellipse 16% 10% at 80% 70%, #fff 0, transparent 70%),
+    radial-gradient(ellipse 20% 12% at 12% 82%, #fff 0, transparent 70%);
+  animation: sea-drift 16s ease-in-out infinite alternate; transform: translate3d(0, var(--sea-scroll, 0px), 0); }
+.gold-sea .caustic.two { mix-blend-mode: overlay; opacity: .55; animation-duration: 23s; animation-direction: alternate-reverse; filter: blur(6px);
+  background:
+    radial-gradient(ellipse 26% 8% at 30% 45%, #fff6d6 0, transparent 70%),
+    radial-gradient(ellipse 20% 7% at 70% 55%, #fff6d6 0, transparent 70%),
+    radial-gradient(ellipse 24% 9% at 55% 85%, #c98f12 0, transparent 70%),
+    radial-gradient(ellipse 18% 8% at 85% 15%, #c98f12 0, transparent 70%); }
+@keyframes sea-drift {
+  0% { transform: translate3d(0, var(--sea-scroll, 0px), 0) rotate(0) scale(1); }
+  50% { transform: translate3d(4%, calc(var(--sea-scroll, 0px) - 3%), 0) rotate(4deg) scale(1.06); }
+  100% { transform: translate3d(-3%, calc(var(--sea-scroll, 0px) + 2%), 0) rotate(-3deg) scale(1.02); } }
+.gold-sea .glint { position: absolute; inset: 0; transition: background-position .5s ease-out;
+  background: radial-gradient(circle 260px at var(--mx, 50%) var(--my, 40%), rgb(255 252 235 / .7), rgb(255 240 190 / .25) 45%, transparent 70%); mix-blend-mode: soft-light; }
+.gold-sea .glitter { position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle, #fff 0 1px, transparent 1.6px),
+    radial-gradient(circle, #fffbe6 0 1.2px, transparent 2px),
+    radial-gradient(circle, #fff 0 .8px, transparent 1.4px);
+  background-size: 90px 110px, 150px 130px, 60px 70px;
+  background-position: 0 0, 40px 60px, 20px 30px;
+  animation: twinkle 3.2s ease-in-out infinite alternate; opacity: .75; }
+.gold-sea .glitter.two { background-position: 45px 20px, 90px 10px, 5px 50px; animation-delay: -1.6s; }
+@keyframes twinkle { 0% { opacity: .15; } 100% { opacity: .85; } }
+.gold-sea .ripple { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%;
+  border: 2px solid rgb(255 250 225 / .85); box-shadow: 0 0 12px rgb(255 245 200 / .7), inset 0 0 10px rgb(255 245 200 / .5);
+  animation: ripple 1.4s ease-out forwards; }
+.gold-sea .ripple.small { animation-duration: 1s; border-width: 1.5px; }
+@keyframes ripple { from { transform: scale(.4); opacity: .95; } to { transform: scale(var(--r, 9)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .gold-sea * { animation: none !important; } .gold-sea .ripple { display: none; } }
 
 /* Celebrations */
 .cheer-toggle { margin-left: auto; font-size: .85rem; white-space: nowrap; }

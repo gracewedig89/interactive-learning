@@ -82,6 +82,37 @@ function celebrate() {
   setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
 }
 
+/* ---------- Explore's gold sea: follows the pointer, ripples on taps and moves, drifts with scroll ---------- */
+let sea = null;
+function goldSea(on) {
+  if (!on) { sea?.remove(); sea = null; return; }
+  if (sea) return;
+  sea = h("div", { class: "gold-sea", "aria-hidden": "true" },
+    h("div", { class: "caustic" }), h("div", { class: "caustic two" }), h("div", { class: "glint" }), h("div", { class: "glitter" }), h("div", { class: "glitter two" }));
+  document.body.prepend(sea);
+}
+{
+  const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lastRipple = 0, raf = 0, px = 0, py = 0;
+  const ripple = (x, y, small) => {
+    if (!sea || calm()) return;
+    const r = h("span", { class: `ripple${small ? " small" : ""}` });
+    r.style.left = `${x}px`; r.style.top = `${y}px`;
+    r.style.setProperty("--r", small ? 4 + Math.random() * 3 : 10 + Math.random() * 4);
+    sea.append(r);
+    setTimeout(() => r.remove(), 1500);
+  };
+  addEventListener("pointermove", (e) => {
+    if (!sea) return;
+    px = e.clientX; py = e.clientY;
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; sea?.style.setProperty("--mx", `${px}px`); sea?.style.setProperty("--my", `${py}px`); });
+    const now = performance.now();
+    if (now - lastRipple > 140 && Math.hypot(e.movementX || 0, e.movementY || 0) > 6) { lastRipple = now; ripple(px, py, true); }
+  }, { passive: true });
+  addEventListener("pointerdown", (e) => ripple(e.clientX, e.clientY, false), { passive: true });
+  addEventListener("scroll", () => sea?.style.setProperty("--sea-scroll", `${-(scrollY * 0.15) % 400}px`), { passive: true });
+}
+
 /* ---------- storage: private db docs, falling back to this browser ---------- */
 const local = {
   get(k) { try { return JSON.parse(localStorage.getItem("studyhub:" + k)); } catch { return null; } },
@@ -2594,6 +2625,7 @@ function render() {
   else if (state.view === "explore" || state.course === "explore") document.body.dataset.course = "explore";
   else delete document.body.dataset.course;
   document.body.querySelector(".fab")?.remove();
+  goldSea(document.body.dataset.course === "explore");
   app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "explore" ? exploreView() : classView());
   document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar")?.offsetHeight || 56}px`);
   if (state.view === "scholarships" && state.lessonId) document.getElementById("sch-" + state.lessonId)?.scrollIntoView({ block: "start" });
