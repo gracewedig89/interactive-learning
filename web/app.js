@@ -21,6 +21,7 @@ for (const m of ["replaceChildren", "append", "prepend"]) {
   Element.prototype[m] = function (...nodes) { return orig.apply(this, nodes.filter((n) => n != null && n !== false)); };
 }
 const md = (t) => DOMPurify.sanitize(marked.parse(t || ""));
+const DEFAULT_CHART = ["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Prepaid Rent", "Equipment", "Accounts Payable", "Notes Payable", "Unearned Revenue", "Wages Payable", "Common Stock", "Retained Earnings", "Dividends", "Service Revenue", "Rent Expense", "Wages Expense", "Utilities Expense", "Supplies Expense", "Insurance Expense", "Depreciation Expense", "Accumulated Depreciation", "Interest Expense", "Interest Payable"];
 const money = (n) => (typeof n === "number" ? "$" + n.toLocaleString("en-US") : "");
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -85,6 +86,9 @@ const state = {
   scholarships: [],  // {id, name, amount, deadline, url, eligibility, requirements, questions, status, fit, drafts, interview}
   profile: {},       // the student's "about me" answers for scholarships
   inbox: [],         // readings brought in from Claude in Chrome, not built into lessons yet: {id, courseKey, title, text, module}
+  readings: {},      // courseKey -> every reading kept for weekly notes: [{id, title, module, kind, url, text, addedAt}]
+  pathBuilding: {},  // courseKey -> {started} | {error} while the next path lesson is being made
+  weekNotes: {},     // "courseKey|module" -> {overview, mustKnow, readings, terms, questions, readingIds, createdAt}
 };
 
 async function loadState() {
@@ -92,6 +96,9 @@ async function loadState() {
   const [d, l, p] = await Promise.all([store.get("deadlines"), store.get("lessons"), store.get("progress")]);
   mergeProgress(state.progress, p?.lessons); // merge in place: open lessons keep their references
   state.inbox = (await store.get("inbox"))?.items || [];
+  await Promise.all(COURSES.map(async (c) => { state.readings[c.key] = (await store.get("readings-" + c.key))?.items || []; }));
+  for (const r of state.inbox) keepReading(r.courseKey, r, false); // readings imported before the library existed
+  state.weekNotes = (await store.get("weeknotes"))?.notes || {};
   state.worksheets = (await store.get("worksheets"))?.items || [];
   state.scholarships = (await store.get("scholarships"))?.items || [];
   state.profile = (await store.get("profile")) || {};
@@ -176,6 +183,26 @@ setInterval(() => {
 let wsTimer;
 const saveWorksheets = () => { clearTimeout(wsTimer); wsTimer = setTimeout(() => store.set("worksheets", { items: state.worksheets }), 500); };
 const saveInbox = () => store.set("inbox", { items: state.inbox });
+
+// Reading library for weekly notes. One doc per class; text is capped so the doc stays small.
+const MAX_READINGS = 80, READING_CHARS = 14000;
+function keepReading(courseKey, r, save = true) {
+  if (!courseKey || !r?.text) return;
+  const list = (state.readings[courseKey] ||= []);
+  const module = String(r.module || "").trim() || weekOf(new Date(r.addedAt || Date.now()));
+  const old = list.find((x) => x.title === r.title && x.module === module);
+  const rec = { id: old?.id || r.id || "r-" + uid(), title: String(r.title || "Reading").slice(0, 140), module, kind: r.kind || "page", url: r.url || "",
+    text: String(r.text).slice(0, READING_CHARS), addedAt: old?.addedAt || r.addedAt || new Date().toISOString() };
+  if (old) Object.assign(old, rec); else list.push(rec);
+  if (list.length > MAX_READINGS) list.splice(0, list.length - MAX_READINGS);
+  if (save) saveReadings(courseKey);
+}
+const saveReadings = (courseKey) => store.set("readings-" + courseKey, { items: state.readings[courseKey] || [] });
+const saveWeekNotes = () => store.set("weeknotes", { notes: state.weekNotes });
+function weekOf(d) {
+  const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return "Week of " + m.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 async function saveLessons() {
   if (db) mergeLessons(await store.get("lessons"));
   return store.set("lessons", { items: state.lessons, deleted: deletedLessons.slice(-200) });
@@ -265,6 +292,7 @@ My classes: ACCT 2010 Principles of Accounting I, ISA 2050 Management Informatio
 
 For each class:
 1. Open the course and go to Modules. Find the current module and the next one (use dates in the module names, or the first module with items I haven't completed). Also check the Announcements from the last 2 weeks for readings or links my teacher wants me to look at.
+   For ENGL 3010, also include the readings from the previous module (last week) so my weekly notes are complete.
 2. Open every reading, page, PDF, and outside link (websites, articles, videos with descriptions or transcripts) in those modules and announcements. For each one, write detailed study notes that keep all key concepts, rules, definitions, formulas, and worked examples. Up to about 800 words each, written so someone could learn from them without the original.
    McGraw Hill Connect: ACCT 2010's textbook lives in McGraw Hill Connect (SmartBook and the eBook), opened from links in Canvas. Open the Connect link for the current chapter in a new tab. If it loads, open the eBook (or the SmartBook reading) for the assigned chapters and write notes organized by learning objective, with worked examples. Only read the textbook. Don't answer, practice, or submit any SmartBook, homework, or quiz question, and don't start anything timed. If Connect won't open, add one reading titled "McGraw Hill Connect: couldn't open" whose notes list the assigned chapters and sections, so I know what to upload myself.
 3. Open Assignments and list everything due in the next 14 days, with the full instructions.
@@ -277,7 +305,7 @@ When you're finished, reply with ONLY one JSON code block in exactly this shape:
   "courses": [
     {
       "course": "course name and code as shown in Canvas",
-      "readings": [{ "module": "module name", "title": "title", "kind": "page" | "pdf" | "link" | "ebook", "url": "where it lives", "notes": "your detailed study notes" }],
+      "readings": [{ "module": "the module or week name exactly as Canvas shows it, like Week 5: Ethical Frameworks", "title": "title", "kind": "page" | "pdf" | "link" | "ebook", "url": "where it lives", "notes": "your detailed study notes" }],
       "assignments": [{ "title": "...", "due": "ISO 8601 date with time zone offset, like 2026-09-24T23:59:00-06:00", "instructions": "full instructions", "url": "link to it in Canvas" }],
       "worksheets": [{ "assignment": "title of the assignment it belongs to", "title": "worksheet title", "instructions": "instructions printed on it", "sections": [{ "heading": "section heading", "fields": [{ "label": "the exact question or blank", "type": "short" | "paragraph" | "number" | "journal", "rows": 4 }] }] }],
       "quizzes": [{ "title": "...", "due": "ISO 8601 with offset", "covers": "topics or chapters listed on the quiz page", "details": "instructions, number of questions, time limit, attempts", "url": "link" }]
@@ -300,7 +328,7 @@ function parsePack(text) {
 function importPack(text) {
   const pack = parsePack(text);
   let readings = 0, assignments = 0, worksheets = 0, quizzes = 0;
-  const skipped = [];
+  const skipped = [], readingCourses = new Set();
   for (const c of pack.courses) {
     const courseKey = guessCourse(String(c.course || ""));
     if (!courseKey) { skipped.push(c.course); continue; }
@@ -310,6 +338,8 @@ function importPack(text) {
       state.inbox = state.inbox.filter((x) => !(x.courseKey === courseKey && x.title === title));
       state.inbox.push({ id: "r-" + uid(), courseKey, title, module: String(r.module || ""), kind: String(r.kind || "page"), url: String(r.url || ""),
         text: String(r.notes).slice(0, 30000), addedAt: new Date().toISOString() });
+      keepReading(courseKey, state.inbox.at(-1), false);
+      readingCourses.add(courseKey);
       readings++;
     }
     for (const w of c.worksheets || []) {
@@ -351,6 +381,7 @@ function importPack(text) {
   state.deadlines.sort((x, y) => new Date(x.due) - new Date(y.due));
   saveDeadlines();
   saveInbox();
+  readingCourses.forEach(saveReadings);
   saveWorksheets();
   return { readings, assignments, worksheets, quizzes, skipped };
 }
@@ -425,6 +456,28 @@ function feedback(ok, why, askText, miss) {
 }
 const note = (t) => state.activity.push(t);
 
+/* ---------- difficulty that grows as you master things ---------- */
+// How she's doing lately in a class, from first-try accuracy over the last two weeks.
+function courseLevel(key) {
+  const a = statsFor(startOfDay(-13), new Date(Date.now() + 1), key);
+  const pct = a.first ? a.firstRight / a.first : null;
+  const level = a.first >= 8 && pct >= 0.85 ? "mastering" : a.first >= 8 && pct < 0.6 ? "building" : "steady";
+  return { level, pct, n: a.first };
+}
+function difficultyNote(key, round) {
+  const { level, pct, n } = courseLevel(key);
+  const lines = [];
+  if (pct != null && n >= 4) lines.push(`Lately she gets ${Math.round(pct * 100)}% right on the first try in this class (${n} questions).`);
+  if (round && round.total) lines.push(`On the last practice round she got ${round.right} of ${round.total} right on the first try.`);
+  const roundPct = round?.total ? round.right / round.total : null;
+  if (level === "mastering" || (roundPct != null && roundPct >= 0.8))
+    lines.push("She's mastering this, so make this round clearly HARDER than the last: multi-step problems, compound transactions or queries, closer distractors, less familiar situations, and questions that ask why, not just what. Hints should be lighter.");
+  else if (level === "building" || (roundPct != null && roundPct < 0.5))
+    lines.push("She's still building this: keep it approachable, one step at a time, with clear hints, then build up.");
+  else lines.push("Pitch it a notch above her last round so she keeps growing.");
+  return lines.join(" ");
+}
+
 /* ---------- progress: lesson completion and what you missed ---------- */
 // state.progress[lessonKey] = { courseKey, title, total, solved, firstTryRight, done, completedAt, missed: [{concept, detail}], practice }
 let track = null;
@@ -473,6 +526,8 @@ function newTracker(lesson) {
       saved.done = true;
       saved.updatedAt = new Date().toISOString();
       saved.completedAt = new Date().toISOString();
+      const key = state.course;
+      if (key !== "explore" && !state.lessons.some((l) => l.id === lesson.id && !l.path)) setTimeout(() => { if (pathCaughtUp(key)) buildNextLesson(key, { quiet: true }); }, 800);
       note(`Finished the lesson${auto ? " (every question answered correctly)" : ""}.`);
       saveProgress();
       this.listeners.forEach((f) => f());
@@ -562,6 +617,74 @@ const RENDER = {
       h("p", { class: "muted", style: "margin:0" }, "Pick Dr (debit, left) or Cr (credit, right) for each account. The amount moves into that column."),
       h("div", { class: "scroll" }, h("table", { class: "journal" },
         h("thead", {}, h("tr", {}, h("th", {}, "Account"), h("th", {}, "Your pick"), h("th", {}, "Debit"), h("th", {}, "Credit"))), body)));
+  },
+
+  // Build the whole entry: pick accounts from a dropdown and type amounts on the debit or credit side.
+  journalBuilder(b) {
+    const chart = [...new Set([...(b.accounts || []), ...b.rows.flatMap((r) => r.entries.map((e) => e.account)), ...DEFAULT_CHART])].sort();
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Build the journal entries"),
+      h("p", { class: "muted", style: "margin:0" }, "Choose each account, then type its amount under Debit or Credit. Press Check entry when you're done with a transaction."),
+      b.rows.map((row, n) => {
+        const id = track.add();
+        const key = "jb:" + row.transaction.slice(0, 120);
+        const lines = row.entries.map(() => {
+          const acct = h("select", { "aria-label": "Account" }, h("option", { value: "" }, "Choose account…"), chart.map((a) => h("option", { value: a }, a)));
+          const dr = h("input", { inputmode: "decimal", class: "mono", placeholder: "Debit", "aria-label": "Debit amount" });
+          const cr = h("input", { inputmode: "decimal", class: "mono", placeholder: "Credit", "aria-label": "Credit amount" });
+          const mark = h("td", { class: "jb-mark" });
+          return { acct, dr, cr, mark, tr: h("tr", {}, h("td", {}, acct), h("td", {}, dr), h("td", {}, cr), mark) };
+        });
+        const fb = h("div");
+        const save = () => track.record(key, lines.map((l) => ({ a: l.acct.value, d: l.dr.value, c: l.cr.value })));
+        lines.forEach((l) => [l.acct, l.dr, l.cr].forEach((el) => el.addEventListener("change", save)));
+        const check = (restore) => {
+          const want = row.entries.map((e) => ({ ...e, used: false }));
+          let allOk = true;
+          const got = lines.map((l) => {
+            const d = num(l.dr.value), c = num(l.cr.value);
+            const side = d && !c ? "debit" : c && !d ? "credit" : null;
+            return { l, account: l.acct.value, side, amount: side === "debit" ? d : c };
+          });
+          for (const g of got) {
+            const exact = want.find((w) => !w.used && w.account === g.account && w.side === g.side && w.amount === g.amount);
+            let msg, ok = false;
+            if (exact) { exact.used = true; ok = true; msg = "✓"; }
+            else if (!g.account) msg = "Pick an account";
+            else if (!g.side) msg = "Put the amount in one column";
+            else {
+              const sameAcct = want.find((w) => !w.used && w.account === g.account);
+              if (!sameAcct) msg = `${g.account} isn't part of this entry`;
+              else if (sameAcct.side !== g.side) msg = `${g.account} goes on the other side`;
+              else msg = "Check the amount";
+            }
+            if (!ok) allOk = false;
+            g.l.mark.replaceChildren(h("span", { class: ok ? "good" : "bad" }, msg));
+            g.l.tr.classList.toggle("good-cell", ok);
+            g.l.tr.classList.toggle("bad-cell", !ok);
+          }
+          if (want.some((w) => !w.used)) allOk = false;
+          const drT = got.filter((g) => g.side === "debit").reduce((t, g) => t + (g.amount || 0), 0);
+          const crT = got.filter((g) => g.side === "credit").reduce((t, g) => t + (g.amount || 0), 0);
+          const correct = row.entries.map((e) => `${e.side === "debit" ? "Dr" : "Cr"} ${e.account} ${money(e.amount)}`).join("; ");
+          const miss = { concept: `Journal entry: ${row.transaction}`, detail: `I entered: ${got.map((g) => `${g.side === "debit" ? "Dr" : g.side === "credit" ? "Cr" : "?"} ${g.account || "?"} ${g.amount ? money(g.amount) : ""}`).join("; ")}.` };
+          fb.replaceChildren(allOk
+            ? feedback(true, `Balanced: debits ${money(drT)} = credits ${money(crT)}.`)
+            : feedback(false, drT !== crT ? `Your debits (${money(drT)}) and credits (${money(crT)}) don't balance yet.` : "Some lines are off. Fix the red ones and check again.",
+              `For "${row.transaction}" I entered: ${miss.detail} What am I getting wrong? Don't just give me the answer.`, miss),
+            !allOk ? h("button", { class: "linkish", onclick: (e) => { e.currentTarget.replaceWith(h("span", { class: "muted", style: "font-size:.88rem" }, "Answer: " + correct)); } }, "Show the answer") : null);
+          if (!restore) { save(); note(`Built entry for "${row.transaction}" (${allOk ? "right" : "wrong"}).`); }
+          track.attempt(id, allOk, miss, restore);
+        };
+        const saved = track.answer(key);
+        if (Array.isArray(saved)) {
+          saved.forEach((v, i) => { if (!lines[i]) return; lines[i].acct.value = v.a || ""; lines[i].dr.value = v.d || ""; lines[i].cr.value = v.c || ""; });
+          if (saved.some((v) => v.a && (v.d || v.c))) queueMicrotask(() => check(true));
+        }
+        return track.at(id, h("div", { class: "jb" },
+          h("p", { style: "margin:0" }, h("b", {}, `${n + 1}. `), row.transaction),
+          h("div", { class: "scroll" }, h("table", { class: "jb-table" }, h("thead", {}, h("tr", {}, h("th", {}, "Account"), h("th", {}, "Debit"), h("th", {}, "Credit"), h("th", {}, ""))), h("tbody", {}, lines.map((l) => l.tr)))),
+          h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => check(false) }, "Check entry")), fb));
+      }));
   },
 
   quiz: (b) => h("section", { class: "block" }, h("h2", {}, b.title || "Check yourself"), b.intro ? h("p", { style: "margin:0" }, b.intro) : null, b.items.map((q) => {
@@ -1065,7 +1188,10 @@ function progressBlock() {
       s.missed.length ? h("div", {}, h("b", {}, "Things to practice"), h("ul", { class: "points" }, s.missed.slice(-6).map((m) => h("li", {}, m.concept)))) : null,
       h("div", { class: "row" },
         s.missed.length && sample ? h("button", { class: "btn", onclick: () => practice.make(s.missed.slice(-6)) }, `Practice what I missed (${Math.min(s.missed.length, 6)})`) : null,
+        sample && (s.done || (track.first.size >= 3 && [...track.first.values()].filter(Boolean).length / track.first.size >= 0.8))
+          ? h("button", { class: "btn quiet", onclick: () => practice.make([], { challenge: true }) }, "🔥 Challenge me (harder)") : null,
         !s.done ? h("button", { class: "btn quiet", onclick: () => track.complete(false) }, "Mark lesson complete") : null,
+        s.done ? nextUpButton() : null,
         s.missed.length ? h("button", { class: "linkish", onclick: () => { s.missed = []; s.updatedAt = new Date().toISOString(); saveProgress(); draw(); } }, "Clear list") : null));
   };
   track.listeners.push(draw);
@@ -1076,21 +1202,25 @@ function progressBlock() {
 /* ---------- extra practice from mistakes ---------- */
 const practice = {
   area: null,
-  async make(misses) {
+  async make(misses, { challenge = false } = {}) {
     if (!sample || !this.area) return;
     const course = courseOf(state.course);
     const lesson = currentLesson();
+    // How did the last practice round go? (items after the lesson's own questions)
+    const lastRound = [...track.first.entries()].filter(([id]) => itemNum(id) >= track.base);
+    const round = lastRound.length ? { right: lastRound.filter(([, ok]) => ok).length, total: lastRound.length } : null;
     const ctl = new AbortController();
     this.area.replaceChildren(h("section", { class: "block working" }, h("div", { class: "spinner" }),
-      h("b", {}, "Making practice questions for what you missed…"), h("button", { class: "btn quiet small", onclick: () => ctl.abort() }, "Stop")));
+      h("b", {}, challenge ? "Making a harder challenge round…" : "Making practice questions for what you missed…"), h("button", { class: "btn quiet small", onclick: () => ctl.abort() }, "Stop")));
     this.area.scrollIntoView({ behavior: "smooth", block: "start" });
     const prompt = [
       `You are ${course.tutor}. A student is working through the lesson "${lesson?.title}".`,
       `Lesson objectives: ${lesson?.blocks.find((b) => b.type === "objectives")?.text || ""}`,
-      "They got these wrong:",
-      ...misses.map((m, i) => `${i + 1}. ${m.concept}. ${m.detail}`),
+      challenge ? "They've done well on this lesson. Write a CHALLENGE round that stretches what they know: harder, multi-step, applied to new situations." : "They got these wrong:",
+      ...(challenge ? [] : misses.map((m, i) => `${i + 1}. ${m.concept}. ${m.detail}`)),
+      difficultyNote(state.course, round),
       "Write a short practice set that helps them actually understand these ideas, not memorize answers. Break each idea into smaller steps: start with an easier question that isolates the core rule, then build to applying it in a new situation. Use fresh examples, not the same ones they missed. Every item gets a hint that nudges their thinking (a question to ask themselves) without giving the answer, and an explanation that walks through the reasoning.",
-      state.course === "accounting" ? "Include 2-4 debitCredit transactions (debits equal credits) plus 3-5 quiz questions." : "",
+      state.course === "accounting" ? "Include 2-4 debitCredit transactions (debits equal credits; she'll build these entries herself from a list of accounts, so compound entries with 3 lines are great when she's ready) plus 3-5 quiz questions." : "",
       state.course === "sql" ? `Include 2-4 sqlExercises (solutions must run in SQLite on this database) plus 2-3 quiz questions:\n${PRACTICE.schema}` : "",
       state.course === "language-arts" ? "Include 4-6 quiz questions." : "",
       `Reply with ONLY one JSON object:
@@ -1120,7 +1250,9 @@ const practice = {
     for (const id of [...track.els.keys()]) if (itemNum(id) >= track.base) { track.els.delete(id); track.solved.delete(id); track.first.delete(id); }
     track.count = track.base;
     const blocks = [];
-    if (set.debitCredit?.length) blocks.push({ type: "debitCredit", title: "Practice: debit or credit?", rows: set.debitCredit });
+    if (set.debitCredit?.length) blocks.push(state.course === "accounting"
+      ? { type: "journalBuilder", title: "Practice: build these entries yourself", rows: set.debitCredit }
+      : { type: "debitCredit", title: "Practice: debit or credit?", rows: set.debitCredit });
     if (set.sqlExercises?.length) blocks.push({ type: "sql", title: "Practice queries", tasks: set.sqlExercises });
     const quiz = (set.quiz || []).filter((q) => q.options?.[q.answerIndex] != null);
     if (quiz.length) blocks.push({ type: "quiz", title: "Practice: check yourself", items: quiz });
@@ -1158,17 +1290,97 @@ const LESSON_SHAPE = `Reply with ONLY one JSON object of this shape:
   "practicePrompts": string[]
 }`;
 
-async function buildLesson({ courseKey, title, text, assignment, signal, onProgress }) {
+/* ---------- learning path: new lessons that build on finished ones ---------- */
+function nextUpButton() {
+  const key = state.course;
+  if (!key || key === "explore") return null;
+  const next = [...(LESSONS[key] || []), ...pathLessons(key)].find((l) => l.id !== state.lessonId && !isDone(key, l.id));
+  if (next) return h("button", { class: "btn", onclick: () => go("class", key, next.id) }, `Next: ${next.title || next.data?.title} →`);
+  return state.pathBuilding[key]?.started ? h("span", { class: "muted" }, "🌱 Building your next lesson… it'll show in the sidebar.") : null;
+}
+
+const pathAutoTried = new Set();
+const pathLessons = (key) => state.lessons.filter((l) => l.courseKey === key && l.path);
+const isDone = (key, id) => !!state.progress[`${key}:${id}`]?.done;
+// Everything in the class's lesson list is finished (built-in lessons, then path lessons).
+const pathCaughtUp = (key) => [...(LESSONS[key] || []), ...pathLessons(key)].every((l) => isDone(key, l.id));
+
+function pathMaterial(key) {
+  const done = [...(LESSONS[key] || []).map((l) => ({ id: l.id, title: l.title, objectives: l.blocks.find((b) => b.type === "objectives")?.text || "" })),
+    ...pathLessons(key).map((l) => ({ id: l.id, title: l.data.title, objectives: l.data.objectives || "" })),
+    ...state.lessons.filter((l) => l.courseKey === key && !l.path).map((l) => ({ id: l.id, title: l.data.title, objectives: l.data.objectives || "" }))]
+    .map((l) => ({ ...l, p: state.progress[`${key}:${l.id}`] })).filter((l) => l.p);
+  const lessons = done.map((l) => {
+    const v = Object.values(l.p.firstTry || {});
+    const pctRight = v.length ? Math.round((v.filter(Boolean).length / v.length) * 100) : null;
+    return `- ${l.title} (${l.p.done ? "finished" : "in progress"}${pctRight != null ? `, ${pctRight}% right on first try` : ""}): ${l.objectives.slice(0, 300)}`;
+  }).join("\n");
+  const missed = done.flatMap((l) => l.p.missed || []).slice(-12).map((m) => `- ${m.concept}`).join("\n");
+  const soon = state.deadlines.filter((d) => d.courseKey === key && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 21 * 864e5)
+    .map((d) => `- ${d.kind === "quiz" ? "Quiz/test" : "Assignment"}: ${d.title} (due ${new Date(d.due).toLocaleDateString("en-US", { month: "short", day: "numeric" })})${d.covers ? ` covers: ${d.covers}` : ""}${d.description ? ` — ${String(d.description).slice(0, 300)}` : ""}`).join("\n");
+  const weeks = readingWeeks(key).slice(0, 2).map((w) => {
+    const n = state.weekNotes[w.key];
+    return `- ${w.module}: ${w.list.map((r) => r.title).join("; ")}${n ? `\n  Key ideas: ${n.mustKnow.join(" | ")}` : ""}`;
+  }).join("\n");
+  return [`Lessons she has done in ${courseOf(key).title}, in order:\n${lessons || "(none yet: start with the first core topic of this course)"}`,
+    missed ? `Concepts she missed and should see again:\n${missed}` : "",
+    soon ? `Coming up in Canvas (next 3 weeks):\n${soon}` : "",
+    weeks ? `Current readings:\n${weeks}` : ""].filter(Boolean).join("\n\n");
+}
+
+async function buildNextLesson(key, { quiet = false } = {}) {
+  if (!sample || state.pathBuilding[key]) return;
+  state.pathBuilding[key] = { started: Date.now() };
+  refreshPathUI(key);
+  try {
+    const { data } = await buildLesson({ courseKey: key, title: "Next lesson", text: pathMaterial(key), next: true });
+    const n = (LESSONS[key] || []).length + pathLessons(key).length + 1;
+    data.title = `${n}. ${String(data.title).replace(/^\s*\d+[.)]\s*/, "")}`;
+    const rec = { id: "p-" + uid(), courseKey: key, path: true, title: data.title, source: "Next step in your path", createdAt: new Date().toISOString(), data };
+    state.lessons.push(rec);
+    await saveLessons();
+    delete state.pathBuilding[key];
+    note(`Built the next lesson: ${data.title}.`);
+    if (state.view === "class" && state.course === key) {
+      const here = state.lessonId;
+      render(); // adds it to the sidebar
+      if (!quiet && !here) go("class", key, rec.id);
+    }
+  } catch (e) {
+    state.pathBuilding[key] = { error: sampleErrorText(e) };
+    refreshPathUI(key);
+  }
+}
+function refreshPathUI(key) {
+  document.querySelectorAll(`[data-path="${key}"]`).forEach((el) => el.replaceWith(pathControl(key)));
+}
+// Sidebar control: build the next lesson, or show that one is being built.
+function pathControl(key) {
+  const st = state.pathBuilding[key];
+  const box = h("div", { class: "path-ctl", "data-path": key });
+  if (st?.started) box.append(h("p", { class: "muted", role: "status" }, h("span", { class: "spinner small" }), " Building your next lesson…"));
+  else box.append(
+    h("button", { class: `btn small${pathCaughtUp(key) ? "" : " quiet"}`, disabled: !sample || null, onclick: () => buildNextLesson(key) }, "🌱 Build my next lesson"),
+    h("small", { class: "muted" }, !sample ? "Works when Study Hub is open in Claude."
+      : pathCaughtUp(key) ? "You've finished everything here. The next one builds on it." : "Builds on what you've done. One is made for you automatically when you finish the list."),
+    st?.error ? h("small", { class: "bad" }, st.error) : null);
+  return box;
+}
+
+async function buildLesson({ courseKey, title, text, assignment, next = false, signal, onProgress }) {
   const course = courseOf(courseKey);
   const material = text.slice(0, 40000);
   const prompt = [
     `You are ${course.tutor}. Write an interactive study lesson from the student's actual course material below.`,
     assignment
       ? `This is an upcoming assignment ("${assignment.title}", due ${new Date(assignment.due).toLocaleString()}). Build a PREP lesson: teach what they need to know to do it well. Do not complete the assignment for them.`
-      : `Source: "${title}". Pull out only what matters most so the student doesn't have to read all of it.`,
+      : next
+        ? `This is the NEXT lesson in the student's own learning path for this class. The notes below show what she has already finished, how she did, and what's coming up in Canvas. Teach ONE new skill or concept that follows logically from what she's done (the next step in a typical intro course sequence), and weave in quick review of anything she missed. When the upcoming Canvas work or current readings point to a topic, prefer it, so this also helps her homework and tests. Never repeat a lesson she's already done. Start the title with a short, specific topic name.`
+        : `Source: "${title}". Pull out only what matters most so the student doesn't have to read all of it.`,
     courseKey === "accounting" ? "Include 3-5 debitCredit transactions that fit the material; debits must equal credits in each." : "Leave debitCredit empty.",
     courseKey === "sql" ? `Include 3-5 sqlExercises answerable against this SQLite practice database (solutions must run on it):\n${PRACTICE.schema}` : "Leave sqlExercises empty.",
     "Include 4-10 definitions, 3-6 quiz questions (answerIndex is 0-based), and 1-3 practicePrompts.",
+    difficultyNote(courseKey),
     LESSON_SHAPE,
     `\n--- COURSE MATERIAL ---\n${material}`,
   ].join("\n\n");
@@ -1198,9 +1410,57 @@ function sampleErrorText(e) {
     case "invalid_json": return "The lesson came back in the wrong format. Try again.";
     case "refused": return "Claude declined this one. Try different material.";
     case "cancelled": return "Stopped.";
+    case "images_unavailable": return "Images can't be sent from here. Try the claude.ai website or the Claude app.";
+    case "image_invalid": case "invalid_image": return "That image couldn't be read. Try a PNG or JPG screenshot.";
     default: return "Something went wrong reaching Claude. Try again.";
   }
 }
+
+/* ---------- images in chat: paste, drop, or attach ---------- */
+let imageCaps = null;
+const getImageCaps = () => (imageCaps ||= sample?.limits ? sample.limits().then((c) => c?.images || null).catch(() => null) : Promise.resolve(null));
+
+// Adds image paste/drop to a chat box. Returns the tray (thumbnails + 📎 button) and the picked files.
+function imageTray(input) {
+  const files = [];
+  let caps = null;
+  const picker = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", multiple: true, hidden: true });
+  const attach = h("button", { class: "btn quiet small attach", type: "button", hidden: true, title: "Attach an image (or paste one into the box)", "aria-label": "Attach an image", onclick: () => picker.click() }, "📎");
+  const thumbs = h("div", { class: "thumbs", hidden: true });
+  const draw = () => {
+    thumbs.hidden = !files.length;
+    thumbs.replaceChildren(...files.map((f, i) => h("span", { class: "thumb" },
+      h("img", { src: f.url, alt: f.file.name || "pasted image" }),
+      h("button", { type: "button", "aria-label": "Remove image", onclick: () => { URL.revokeObjectURL(f.url); files.splice(i, 1); draw(); } }, "✕"))));
+  };
+  const add = (list) => {
+    if (!caps) { showOops("Images can't be sent from here. Open Study Hub on claude.ai or in the Claude app."); return; }
+    const ok = [...list].filter((f) => f.type.startsWith("image/") && (!caps.mediaTypes || caps.mediaTypes.includes(f.type)));
+    if (list.length && !ok.length) { showOops("That file type isn't supported. Use a PNG, JPG, WebP, or GIF."); return; }
+    for (const file of ok) {
+      if (files.length >= (caps.maxCount || 4)) { showOops(`You can send up to ${caps.maxCount || 4} images at a time.`); break; }
+      files.push({ file, url: URL.createObjectURL(file) });
+    }
+    draw();
+  };
+  picker.addEventListener("change", () => { add(picker.files); picker.value = ""; });
+  input.addEventListener("paste", (e) => {
+    const imgs = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith("image/"));
+    if (!imgs.length) return; // plain text pastes as usual
+    e.preventDefault();
+    add(imgs);
+  });
+  input.addEventListener("dragover", (e) => { if ([...(e.dataTransfer?.items || [])].some((i) => i.type.startsWith("image/"))) e.preventDefault(); });
+  input.addEventListener("drop", (e) => { const imgs = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); add(imgs); } });
+  ready.then(getImageCaps).then((c) => { caps = c; attach.hidden = !c; if (c) input.placeholder = input.placeholder.replace("(Enter to send)", "(Enter to send · paste images)"); });
+  return {
+    attach, picker, thumbs,
+    get count() { return files.length; },
+    take() { const out = files.map((f) => f.file); files.forEach((f) => URL.revokeObjectURL(f.url)); files.length = 0; draw(); return out; },
+  };
+}
+const imageNote = (n) => (n ? `\n\n[${n === 1 ? "An image is" : `${n} images are`} attached. Look at ${n === 1 ? "it" : "them"} carefully and use what you see.]` : "");
+const imageChip = (m) => (m.images ? h("span", { class: "img-chip" }, `🖼️ ${m.images} image${m.images === 1 ? "" : "s"}`) : null);
 
 /* ---------- Claude: tutor chat ---------- */
 const tutor = {
@@ -1210,11 +1470,12 @@ const tutor = {
     this.input = h("textarea", { id: "tutor-input", rows: 2, placeholder: "Ask anything… (Enter to send)", "aria-label": "Message the tutor" });
     this.sendBtn = h("button", { class: "btn", onclick: () => this.send() }, "Send");
     this.input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.send(); } });
+    this.tray = imageTray(this.input);
     this.el = h("aside", { class: "tutor", "aria-label": "Tutor" },
       h("header", {}, h("h2", {}, "Tutor"),
         h("button", { class: "linkish", onclick: () => { state.chats[this.key] = []; saveChats(); this.draw(); } }, "Clear"),
         h("button", { class: "btn quiet small close", onclick: () => document.body.classList.remove("tutor-open"), "aria-label": "Close tutor" }, "✕")),
-      this.log, h("div", { class: "composer" }, this.input, this.sendBtn));
+      this.log, this.tray.thumbs, h("div", { class: "composer" }, this.input, h("div", { class: "composer-btns" }, this.tray.attach, this.sendBtn), this.tray.picker));
     return this.el;
   },
   get key() { return state.course === "explore" && state.explore.topic ? "explore:" + state.explore.topic.id : state.course; },
@@ -1228,7 +1489,7 @@ const tutor = {
     this.log.scrollTop = this.log.scrollHeight;
   },
   bubble(m) {
-    return m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "…") }) : h("div", { class: "msg user" }, m.content);
+    return m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "…") }) : h("div", { class: "msg user" }, imageChip(m), m.content);
   },
   context() {
     const course = courseOf(state.course);
@@ -1241,6 +1502,7 @@ const tutor = {
       "For graded assignments, guide them with steps and examples instead of writing the submission for them.",
       state.course === "explore" && state.explore.topic ? `What they know about ${state.explore.topic.name}:\n${knowledgeText(state.explore.topic)}` : "",
       currentWorksheet() ? worksheetContext(currentWorksheet()) : "",
+      state.lessonId === "notes" ? weekNotesContext(state.course) : "",
       lesson ? `They're on the lesson "${lesson.title}". Objectives: ${lesson.blocks.find((b) => b.type === "objectives")?.text || ""}` : "",
       state.activity.length ? `What they just did:\n${state.activity.slice(-8).join("\n")}` : "",
       state.course === "sql" ? `Their practice SQLite database:\n${PRACTICE.schema}` : "",
@@ -1251,23 +1513,26 @@ const tutor = {
     this.send(text);
   },
   async send(text = this.input.value.trim()) {
-    if (!text || this.busy) return;
+    if (this.busy || (!text && !this.tray?.count)) return;
+    const images = this.tray?.count ? this.tray.take() : [];
+    if (!text) text = "What's in this image? Help me understand it.";
     if (!sample) { this.turns.push({ role: "user", content: text }, { role: "assistant", content: "_Open this page in Claude to chat with the tutor._" }); this.draw(); return; }
     this.busy = true;
     this.sendBtn.disabled = true;
     this.input.value = "";
     const turns = this.turns;
-    turns.push({ role: "user", content: text });
+    turns.push({ role: "user", content: text, ...(images.length ? { images: images.length } : {}) });
     const reply = { role: "assistant", content: "" };
     this.draw();
     const bubble = this.bubble({ role: "assistant", content: "_Thinking…_" });
     this.log.append(bubble);
     this.log.scrollTop = this.log.scrollHeight;
-    const history = turns.slice(-16).filter((t) => t.content);
+    const history = turns.slice(-16).filter((t) => t.content).map(({ role, content }) => ({ role, content }));
+    if (images.length) history[history.length - 1].content += imageNote(images.length);
     this.ctl = new AbortController();
     try {
       const { text: full, truncated } = await sample([{ role: "user", content: this.context() }, ...history], {
-        cache: false, signal: this.ctl.signal,
+        cache: false, signal: this.ctl.signal, ...(images.length ? { images } : {}),
         onText: ({ text }) => { bubble.innerHTML = md(text); this.log.scrollTop = this.log.scrollHeight; },
       });
       reply.content = full + (truncated ? "\n\n_(Cut short. Ask me to continue.)_" : "");
@@ -1422,6 +1687,7 @@ function practiceTestView(d) {
       d.covers ? `The quiz page says it covers: ${d.covers}` : "",
       d.description ? `Quiz details: ${d.description}` : "",
       "Write 10-15 multiple-choice questions that mix recall, application, and 'which is NOT' style questions, from easier to harder, each with a hint and an explanation of the reasoning.",
+      difficultyNote(state.course),
       state.course === "accounting" ? "Also include 3 debitCredit transactions (debits equal credits)." : "",
       state.course === "sql" ? `Also include 3 sqlExercises that run in SQLite on:\n${PRACTICE.schema}` : "",
       "objectives: one paragraph on what this quiz most likely tests and how to study for it. keyPoints: a last-minute review sheet of the must-know facts.",
@@ -1487,78 +1753,148 @@ function streak() {
   return n;
 }
 
+// Chart colors per class (checked for color-blind separation in light and dark).
+const SERIES = [
+  { key: "accounting", title: "Accounting", color: "#c9357a" },
+  { key: "sql", title: "SQL", color: "#22a6ae" },
+  { key: "language-arts", title: "Language Arts", color: "#5f6ce0" },
+  { key: "biology", title: "Biology", color: "#42a366" },
+  { key: "explore", title: "Explore", color: "#a8660c" },
+];
+const svgEl = (svg, tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const k in attrs) n.setAttribute(k, attrs[k]); svg.append(n); return n; };
+
 function statsPanel() {
   const now = new Date(Date.now() + 1);
   const wk = statsFor(startOfDay(-6), now), prev = statsFor(startOfDay(-13), startOfDay(-6));
   const hasAny = Object.keys(state.stats.days).length > 0;
   const tile = (label, value, d) => h("div", { class: "tile" }, h("span", { class: "tile-label" }, label), h("span", { class: "tile-value" }, value), d);
   const s = streak();
-
-  // Minutes per day, last 14 days
-  const days = Array.from({ length: 14 }, (_, i) => { const d = startOfDay(i - 13); return { d, secs: statsFor(d, startOfDay(i - 12)).secs, q: statsFor(d, startOfDay(i - 12)).q }; });
-  const max = Math.max(30 * 60, ...days.map((x) => x.secs));
-  const niceMax = Math.ceil(max / 60 / 15) * 15; // minutes, rounded to 15
-  const Wd = 560, Ht = 150, padL = 34, padB = 22, padT = 8, bw = (Wd - padL) / 14;
-  const y = (min) => padT + (Ht - padT - padB) * (1 - min / niceMax);
-  const tip = h("div", { class: "tip", hidden: true, role: "status" });
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${Wd} ${Ht}`);
-  svg.setAttribute("class", "chart");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Minutes studied per day, last 14 days. Total ${fmtTime(days.reduce((t, x) => t + x.secs, 0))}.`);
-  const el = (tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const k in attrs) n.setAttribute(k, attrs[k]); svg.append(n); return n; };
-  for (const m of [0, niceMax / 3, (niceMax * 2) / 3, niceMax]) {
-    el("line", { x1: padL, x2: Wd, y1: y(m), y2: y(m), class: m ? "grid" : "axis" });
-    const t = el("text", { x: padL - 6, y: y(m) + 4, class: "tick", "text-anchor": "end" }); t.textContent = Math.round(m);
-  }
-  days.forEach((x, i) => {
-    const min = x.secs / 60;
-    const bx = padL + i * bw + 3, w = bw - 6, top = y(min), base = y(0);
-    if (min > 0) {
-      const r = Math.min(4, w / 2, base - top);
-      el("path", { class: "bar", d: `M${bx},${base} V${top + r} Q${bx},${top} ${bx + r},${top} H${bx + w - r} Q${bx + w},${top} ${bx + w},${top + r} V${base} Z` });
-    }
-    if (i % 2 === 1 || i === 13) { const t = el("text", { x: bx + w / 2, y: Ht - 6, class: "tick", "text-anchor": "middle" }); t.textContent = i === 13 ? "Today" : x.d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }); }
-    const hit = el("rect", { x: padL + i * bw, y: padT, width: bw, height: Ht - padT - padB, class: "hit", tabindex: 0 });
-    const show = () => {
-      tip.hidden = false;
-      tip.textContent = `${x.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${fmtTime(x.secs)} studied, ${x.q} answer${x.q === 1 ? "" : "s"}`;
-      const frac = (padL + i * bw + bw / 2) / Wd;
-      tip.style.left = `${frac * 100}%`;
-      tip.style.transform = `translateX(${frac > 0.7 ? -100 : frac < 0.3 ? 0 : -50}%)`; // keep it inside the panel
-    };
-    hit.addEventListener("pointerenter", show); hit.addEventListener("focus", show);
-    hit.addEventListener("pointerleave", () => (tip.hidden = true)); hit.addEventListener("blur", () => (tip.hidden = true));
-  });
-
-  const rows = [...COURSES, { key: "explore", title: "Explore" }].map((c) => {
-    const a = statsFor(startOfDay(-6), now, c.key), b = statsFor(startOfDay(-13), startOfDay(-6), c.key);
-    const all = Object.values(state.progress).filter((p) => p.courseKey === c.key);
-    const pa = pct(a), pb = pct(b);
-    return h("tr", {},
-      h("th", { scope: "row" }, c.title),
-      h("td", { class: "num" }, a.secs ? fmtTime(a.secs) : "–"),
-      h("td", { class: "num" }, pa == null ? "–" : `${pa}%`),
-      h("td", { class: "num" }, pb == null ? "–" : `${pb}%`),
-      h("td", {}, pa != null && pb != null && pa !== pb ? h("span", { class: `delta ${pa > pb ? "up" : "down"}` }, `${pa > pb ? "▲" : "▼"} ${Math.abs(pa - pb)} pts`) : h("span", { class: "delta flat" }, "–")),
-      h("td", { class: "num" }, String(all.filter((p) => p.done).length)),
-      h("td", { class: "num" }, String(all.reduce((t, p) => t + (p.missed?.length || 0), 0))));
-  });
-
   return h("section", { class: "panel stats", "aria-labelledby": "stats-h" },
-    h("div", { class: "panel-head" }, h("h2", { id: "stats-h" }, "Your learning"),
-      h("span", { class: "muted" }, s ? `🔥 ${s}-day streak` : "Last 7 days")),
+    h("div", { class: "panel-head" }, h("h2", { id: "stats-h" }, "Your learning"), h("span", { class: "muted" }, s ? `🔥 ${s}-day streak` : "Last 7 days")),
     !hasAny ? h("p", { class: "note", style: "margin:0" }, "Open a lesson and answer a few questions. Your study time, accuracy, and improvement show up here.") : null,
     h("div", { class: "tiles" },
       tile("Study time", fmtTime(wk.secs), delta(wk.secs ? Math.round(wk.secs / 60) : 0, prev.secs || prev.q ? Math.round(prev.secs / 60) : null, " min")),
       tile("Questions answered", String(wk.q), delta(wk.q, prev.q || prev.secs ? prev.q : null, "")),
       tile("Right on first try", pct(wk) == null ? "–" : `${pct(wk)}%`, delta(pct(wk), pct(prev), " pts")),
       tile("Lessons completed", String(wk.done), h("span", { class: "delta flat" }, `${wk.practice} practice set${wk.practice === 1 ? "" : "s"}`))),
-    h("div", { class: "chart-wrap" }, h("span", { class: "tile-label" }, "Minutes studied per day"), svg, tip),
-    h("div", { class: "scroll" }, h("table", { class: "stats-table" },
-      h("caption", {}, "By class. “First try” is the share of questions you got right on your first attempt; change is this week vs last week."),
-      h("thead", {}, h("tr", {}, ["Class", "Time (7d)", "First try (7d)", "Prior 7d", "Change", "Lessons done", "To review"].map((t) => h("th", { scope: "col" }, t)))),
-      h("tbody", {}, rows))));
+    dailyChart(),
+    h("h3", { class: "eyebrow", style: "margin:.5rem 0 0" }, "By class"),
+    h("div", { class: "class-stats" }, [...COURSES.map((c) => classStatCard(c)), exploreStatCard()]));
+}
+
+// Minutes per day for the last 14 days, stacked by class.
+function dailyChart() {
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = startOfDay(i - 13), e = startOfDay(i - 12);
+    return { d, parts: SERIES.map((sr) => statsFor(d, e, sr.key).secs / 60), q: statsFor(d, e).q };
+  });
+  const totalMax = Math.max(30, ...days.map((x) => x.parts.reduce((a, b) => a + b, 0)));
+  const niceMax = Math.ceil(totalMax / 15) * 15;
+  const Wd = 860, Ht = 190, padL = 34, padB = 22, padT = 8, bw = (Wd - padL) / 14;
+  const y = (m) => padT + (Ht - padT - padB) * (1 - m / niceMax);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${Wd} ${Ht}`);
+  svg.setAttribute("class", "chart");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Minutes studied per day for each class, last 14 days. Totals by class are in the cards below.");
+  for (const m of [0, niceMax / 3, (niceMax * 2) / 3, niceMax]) {
+    svgEl(svg, "line", { x1: padL, x2: Wd, y1: y(m), y2: y(m), class: m ? "grid" : "axis" });
+    svgEl(svg, "text", { x: padL - 6, y: y(m) + 4, class: "tick", "text-anchor": "end" }).textContent = Math.round(m);
+  }
+  const tip = h("div", { class: "tip", hidden: true, role: "status" });
+  days.forEach((x, i) => {
+    const bx = padL + i * bw + 3, w = bw - 6;
+    let acc = 0;
+    const segs = x.parts.map((m, k) => ({ m, k })).filter((sg) => sg.m > 0);
+    segs.forEach((sg, j) => {
+      const top = y(acc + sg.m), bottom = y(acc);
+      acc += sg.m;
+      const hgt = Math.max(0, bottom - top - (j ? 2 : 0)); // 2px surface gap between classes
+      if (hgt <= 0) return;
+      const yTop = bottom - (j ? 2 : 0) - hgt;
+      const isTop = j === segs.length - 1, r = isTop ? Math.min(4, w / 2, hgt) : 0;
+      svgEl(svg, "path", { fill: SERIES[sg.k].color, d: `M${bx},${yTop + hgt} V${yTop + r} Q${bx},${yTop} ${bx + r},${yTop} H${bx + w - r} Q${bx + w},${yTop} ${bx + w},${yTop + r} V${yTop + hgt} Z` });
+    });
+    if (i % 2 === 1 || i === 13) svgEl(svg, "text", { x: bx + w / 2, y: Ht - 6, class: "tick", "text-anchor": "middle" }).textContent = i === 13 ? "Today" : x.d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+    const hit = svgEl(svg, "rect", { x: padL + i * bw, y: padT, width: bw, height: Ht - padT - padB, class: "hit", tabindex: 0 });
+    const show = () => {
+      const list = SERIES.map((sr, k) => [sr, x.parts[k]]).filter(([, m]) => m >= 0.25);
+      tip.hidden = false;
+      tip.replaceChildren(h("b", {}, x.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })),
+        list.length ? h("div", {}, list.map(([sr, m]) => h("div", { class: "tip-row" }, h("span", { class: "sw", style: `background:${sr.color}` }), `${sr.title}: ${fmtTime(m * 60)}`))) : h("div", {}, "No study time"));
+      const frac = (padL + i * bw + bw / 2) / Wd;
+      tip.style.left = `${frac * 100}%`;
+      tip.style.transform = `translateX(${frac > 0.7 ? -100 : frac < 0.3 ? 0 : -50}%)`;
+    };
+    hit.addEventListener("pointerenter", show); hit.addEventListener("focus", show);
+    hit.addEventListener("pointerleave", () => (tip.hidden = true)); hit.addEventListener("blur", () => (tip.hidden = true));
+  });
+  return h("div", { class: "chart-wrap" },
+    h("div", { class: "panel-head" }, h("span", { class: "tile-label" }, "Minutes studied per day, by class"),
+      h("div", { class: "legend" }, SERIES.map((sr) => h("span", {}, h("span", { class: "sw", style: `background:${sr.color}` }), sr.title)))),
+    svg, tip);
+}
+
+// Lessons in a class, with how well she did on each (first try).
+function classTopics(key) {
+  return Object.entries(state.progress).filter(([k, p]) => p.courseKey === key && k.startsWith(key + ":")).map(([k, p]) => {
+    const v = Object.values(p.firstTry || {});
+    const pctRight = v.length ? v.filter(Boolean).length / v.length : null;
+    const status = p.done && pctRight != null && pctRight >= 0.8 ? "mastered" : p.done ? "done" : v.length ? "working" : null;
+    return { title: p.title || k, pct: pctRight, status, missed: p.missed || [] };
+  }).filter((t) => t.status);
+}
+
+function sparkline(values, color) {
+  const pts = values.map((v, i) => [i, v]).filter(([, v]) => v != null);
+  if (pts.length < 2) return null;
+  const W = 110, H = 34, px = (i) => 4 + (i / (values.length - 1)) * (W - 8), py = (v) => 4 + (1 - v / 100) * (H - 8);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "spark"); svg.setAttribute("aria-hidden", "true");
+  svgEl(svg, "line", { x1: 4, x2: W - 4, y1: py(80), y2: py(80), class: "grid" });
+  svgEl(svg, "polyline", { points: pts.map(([i, v]) => `${px(i)},${py(v)}`).join(" "), fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+  const [li, lv] = pts.at(-1);
+  svgEl(svg, "circle", { cx: px(li), cy: py(lv), r: 3.5, fill: color, stroke: "var(--surface)", "stroke-width": 1.5 });
+  return svg;
+}
+
+function classStatCard(c) {
+  const color = SERIES.find((x) => x.key === c.key)?.color;
+  const now = new Date(Date.now() + 1);
+  const today = statsFor(startOfDay(0), now, c.key), wk = statsFor(startOfDay(-6), now, c.key), prev = statsFor(startOfDay(-13), startOfDay(-6), c.key);
+  const weeks = [3, 2, 1, 0].map((i) => pct(statsFor(startOfDay(-7 * i - 6), startOfDay(-7 * i + 1), c.key)));
+  const lvl = courseLevel(c.key);
+  const topics = classTopics(c.key);
+  const mastered = topics.filter((t) => t.status === "mastered"), working = topics.filter((t) => t.status !== "mastered");
+  const review = topics.flatMap((t) => t.missed.map((m) => m.concept)).slice(-3);
+  const levelChip = lvl.n >= 8 ? h("span", { class: `chip lvl-${lvl.level}` }, { mastering: "Mastering 🔥", steady: "Steady", building: "Building up" }[lvl.level]) : null;
+  return h("article", { class: "cstat", style: `--c:${color}` },
+    h("div", { class: "row", style: "justify-content:space-between" }, h("b", {}, c.title), levelChip),
+    h("div", { class: "cstat-nums" },
+      h("div", {}, h("span", { class: "tile-label" }, "Today"), h("b", {}, today.secs ? fmtTime(today.secs) : "–")),
+      h("div", {}, h("span", { class: "tile-label" }, "This week"), h("b", {}, wk.secs ? fmtTime(wk.secs) : "–")),
+      h("div", {}, h("span", { class: "tile-label" }, "Right on 1st try"), h("b", {}, wk.first ? `${wk.firstRight} of ${wk.first}` : "–"), wk.first ? h("small", {}, `${pct(wk)}%`) : null)),
+    h("div", { class: "row", style: "justify-content:space-between;align-items:center" },
+      h("div", {}, h("span", { class: "tile-label" }, "Improving?"), h("div", {}, delta(pct(wk), pct(prev), " pts"))),
+      sparkline(weeks, color)),
+    mastered.length ? h("div", {}, h("span", { class: "tile-label" }, "✓ Mastered"), h("div", { class: "chips" }, mastered.map((t) => h("span", { class: "chip done" }, t.title)))) : null,
+    working.length ? h("div", {}, h("span", { class: "tile-label" }, "Working on"), h("div", { class: "chips" }, working.slice(0, 4).map((t) => h("span", { class: "chip" }, t.pct != null ? `${t.title} · ${Math.round(t.pct * 100)}%` : t.title)))) : null,
+    review.length ? h("div", {}, h("span", { class: "tile-label" }, "Review next"), h("ul", { class: "xlist shaky" }, review.map((r) => h("li", {}, r)))) : null,
+    !topics.length && !wk.secs ? h("p", { class: "muted", style: "margin:0;font-size:.85rem" }, "No practice yet this week.") : null);
+}
+
+function exploreStatCard() {
+  const color = SERIES.find((x) => x.key === "explore").color;
+  const wk = statsFor(startOfDay(-6), new Date(Date.now() + 1), "explore");
+  const topics = [...state.explore.topics].sort((a, b) => (b.mastered || 0) - (a.mastered || 0));
+  return h("article", { class: "cstat", style: `--c:${color}` },
+    h("b", {}, "Explore"),
+    h("div", { class: "cstat-nums" },
+      h("div", {}, h("span", { class: "tile-label" }, "This week"), h("b", {}, wk.secs ? fmtTime(wk.secs) : "–")),
+      h("div", {}, h("span", { class: "tile-label" }, "Topics"), h("b", {}, String(topics.length))),
+      h("div", {}, h("span", { class: "tile-label" }, "Right on 1st try"), h("b", {}, wk.first ? `${wk.firstRight} of ${wk.first}` : "–"))),
+    topics.length ? h("div", {}, h("span", { class: "tile-label" }, "Concepts mastered"),
+      h("ul", { class: "xlist good" }, topics.slice(0, 4).map((t) => h("li", {}, `${t.name}: ${t.mastered || 0} (${t.level || "new"})`)))) : h("p", { class: "muted", style: "margin:0;font-size:.85rem" }, "Start a topic in Explore."));
 }
 
 /* ---------- scholarships ---------- */
@@ -1966,6 +2302,16 @@ async function newTopic(name) {
   saveTopic(t);
   openTopic(t.id);
 }
+// Explore: how the last lessons/quizzes on this topic went, so the next one steps up.
+function topicRoundNote(t) {
+  const results = topicLessons(t).map((l) => state.progress[`explore:${l.id}`]).filter((p) => p?.firstTry && Object.keys(p.firstTry).length);
+  const last = results.at(-1);
+  const level = t.knowledge?.level || "";
+  if (!last) return level ? `Her level on this topic: ${level}.` : "";
+  const v = Object.values(last.firstTry), pct = v.filter(Boolean).length / v.length;
+  return `On her last ${last.title?.startsWith("Quiz") ? "quiz" : "lesson"} here she got ${Math.round(pct * 100)}% right on the first try (level: ${level || "unknown"}). ` +
+    (pct >= 0.8 ? "She's mastering it: make this one clearly harder, with multi-step and applied questions and lighter hints." : pct < 0.5 ? "Keep this one approachable and rebuild the basics she missed." : "Go a notch harder than last time.");
+}
 const topicLessons = (t) => state.lessons.filter((l) => l.courseKey === "explore" && l.topicId === t.id);
 
 // What Study Hub knows about how she learns, from her classes.
@@ -1997,20 +2343,21 @@ function exploreRules(t) {
     `What she knows about ${t.name} so far:\n${knowledgeText(t)}`,
     past ? `Past sessions:\n${past}` : "This is your first session on this topic.",
     `Her classes and how she's doing (use this to pitch the level and to connect new ideas to things she already knows):\n${learnerContext()}`,
-    "How to teach: small chunks, plain language, one real-world example at a time. End most replies with ONE short question that checks understanding or lets her choose where to go next. When she answers, say clearly whether she's right and why. If she's shaky, back up a step. Keep replies short and skimmable: a few sentences, bullets, or a small markdown table. When something matters for money or legal decisions (like real estate deals), note what she'd verify with a professional.",
+    "How to teach: small chunks, plain language, one real-world example at a time. End most replies with ONE short question that checks understanding or lets her choose where to go next. When she answers, say clearly whether she's right and why. If she's shaky, back up a step. When she gets several right in a row, or something is already on her 'already understands' list, step the difficulty up: harder examples, multi-step problems, and why/what-if questions. Keep replies short and skimmable: a few sentences, bullets, or a small markdown table. When something matters for money or legal decisions (like real estate deals), note what she'd verify with a professional.",
   ].join("\n\n");
 }
 
-async function exploreSend(text, { kickoff = false } = {}) {
+async function exploreSend(text, { kickoff = false, images = [] } = {}) {
   const t = state.explore.topic;
   if (!t || !sample) return;
   const s = t.sessions.at(-1);
-  if (text) { s.messages.push({ role: "user", content: text }); state.explore.dirty++; }
+  if (text) { s.messages.push({ role: "user", content: text, ...(images.length ? { images: images.length } : {}) }); state.explore.dirty++; }
   const reply = { role: "assistant", content: "" };
   s.messages.push(reply);
   drawExploreLog();
   const bubble = document.querySelector(".xlog .msg:last-child");
-  const history = s.messages.slice(0, -1).slice(-24).filter((m) => m.content);
+  const history = s.messages.slice(0, -1).slice(-24).filter((m) => m.content).map(({ role, content }) => ({ role, content }));
+  if (images.length) history[history.length - 1].content += imageNote(images.length);
   const opener = kickoff
     ? (t.sessions.length > 1 || t.knowledge?.summary
       ? "(Session start: welcome me back in one line, remind me in one or two bullets where we left off, suggest what to do today, and ask me one question to get going.)"
@@ -2018,7 +2365,7 @@ async function exploreSend(text, { kickoff = false } = {}) {
     : null;
   try {
     const { text: full } = await sample([{ role: "user", content: exploreRules(t) }, ...history, ...(opener ? [{ role: "user", content: opener }] : [])], {
-      cache: false, onText: ({ text }) => { if (bubble) bubble.innerHTML = md(text); const log = document.querySelector(".xlog"); if (log) log.scrollTop = log.scrollHeight; },
+      cache: false, ...(images.length ? { images } : {}), onText: ({ text }) => { if (bubble) bubble.innerHTML = md(text); const log = document.querySelector(".xlog"); if (log) log.scrollTop = log.scrollHeight; },
     });
     reply.content = full;
   } catch (e) {
@@ -2073,6 +2420,7 @@ async function makeTopicLesson(kind) {
   const recent = (t.sessions.at(-1)?.messages || []).slice(-12).map((m) => `${m.role === "user" ? "Grace" : "Tutor"}: ${m.content}`).join("\n").slice(-8000);
   const prompt = [
     `Write an interactive ${kind === "quiz" ? "check-yourself quiz" : "lesson"} on "${t.name}" for Grace, pitched exactly at where she is. Build on what she knows, focus on what's shaky or next, and use fresh real-world examples.`,
+    topicRoundNote(t),
     `Her knowledge map:\n${knowledgeText(t)}`,
     `What you've been talking about today:\n${recent || "(nothing yet)"}`,
     `Her classes (for level and connections):\n${learnerContext()}`,
@@ -2111,7 +2459,7 @@ function drawExploreLog() {
   if (!log || !t) return;
   const s = t.sessions.at(-1);
   log.replaceChildren(...s.messages.map((m) => {
-    const b = m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "_Thinking…_") }) : h("div", { class: "msg user" }, m.content);
+    const b = m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "_Thinking…_") }) : h("div", { class: "msg user" }, imageChip(m), m.content);
     if (m.lessonId && state.lessons.some((l) => l.id === m.lessonId)) b.append(h("div", {}, h("button", { class: "btn small", onclick: () => go("class", "explore", m.lessonId) }, "Open it")));
     return b;
   }));
@@ -2146,7 +2494,8 @@ function exploreHome() {
 
 function topicView(t) {
   const input = h("textarea", { id: "x-input", rows: 2, placeholder: `Ask anything about ${t.name}… (Enter to send)` });
-  const send = () => { const v = input.value.trim(); if (!v) return; input.value = ""; exploreSend(v); };
+  const tray = imageTray(input);
+  const send = () => { const v = input.value.trim(); if (!v && !tray.count) return; input.value = ""; exploreSend(v || "What's in this image? Help me understand it.", { images: tray.take() }); };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
   const lessons = topicLessons(t);
   const side = h("nav", { class: "side", "aria-label": `${t.name}` },
@@ -2158,7 +2507,7 @@ function topicView(t) {
     t.sessions.length > 1 ? h("span", { class: "eyebrow" }, "Past sessions") : null,
     t.sessions.slice(0, -1).reverse().map((s) => h("details", { class: "xpast" }, h("summary", {}, new Date(s.startedAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
       s.summary ? h("small", {}, s.summary) : null),
-      h("div", { class: "xpast-log" }, s.messages.map((m) => m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content) }) : h("div", { class: "msg user" }, m.content))))));
+      h("div", { class: "xpast-log" }, s.messages.map((m) => m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content) }) : h("div", { class: "msg user" }, imageChip(m), m.content))))));
   const view = h("div", { class: "classview xview" }, side,
     h("main", { class: "stage xstage" },
       h("div", { class: "xhead" }, h("span", { class: "eyebrow" }, "Explore"), h("h1", {}, t.name)),
@@ -2168,7 +2517,8 @@ function topicView(t) {
         h("button", { class: "btn small", onclick: () => makeTopicLesson("quiz") }, "❓ Quiz me"),
         h("button", { class: "btn quiet small", onclick: () => updateKnowledge(t) }, "💾 Save what I learned"),
         h("span", { class: "xsave muted", role: "status" })),
-      h("div", { class: "composer xcomposer" }, input, h("button", { class: "btn", onclick: send }, "Send"))));
+      tray.thumbs,
+      h("div", { class: "composer xcomposer" }, input, h("div", { class: "composer-btns" }, tray.attach, h("button", { class: "btn", onclick: send }, "Send")), tray.picker)));
   queueMicrotask(() => { drawKnowledge(); drawExploreLog(); });
   return view;
 }
@@ -2345,12 +2695,168 @@ function manualForm() {
     h("div", {}, h("button", { class: "btn small", type: "submit" }, "Add")));
 }
 
+/* ---------- weekly reading notes ---------- */
+// Group a class's readings by module/week, newest week first.
+function readingWeeks(courseKey) {
+  const groups = new Map();
+  for (const r of state.readings[courseKey] || []) {
+    if (!groups.has(r.module)) groups.set(r.module, []);
+    groups.get(r.module).push(r);
+  }
+  const num = (m) => Number(/(?:week|module|unit|wk)\s*(\d+)/i.exec(m)?.[1]);
+  const latest = (list) => Math.max(...list.map((r) => new Date(r.addedAt).getTime() || 0));
+  return [...groups.entries()].map(([module, list]) => ({ module, list, key: `${courseKey}|${module}` }))
+    .sort((a, b) => (num(b.module) - num(a.module)) || (latest(b.list) - latest(a.list)));
+}
+
+function weekNotesContext(courseKey) {
+  const w = readingWeeks(courseKey)[0];
+  const n = w && state.weekNotes[w.key];
+  return n ? `They're reviewing their weekly reading notes for "${w.module}". Must-know points: ${n.mustKnow.join(" | ")}` : "";
+}
+
+async function summarizeWeek(courseKey, week, onProgress) {
+  const course = courseOf(courseKey);
+  const budget = Math.floor(60000 / week.list.length);
+  const due = state.deadlines.filter((d) => d.courseKey === courseKey && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 14 * 864e5)
+    .map((d) => `- ${d.title} (due ${new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })})`).join("\n");
+  const prompt = `You are ${course.tutor}. A busy college student has these readings for "${week.module}" in ${course.title}. Read all of them and tell her what she actually needs to know, so she could discuss them in class, write about them, and answer quiz questions without rereading everything.
+
+Rules:
+- Bullets are short (one line, under 25 words), specific, and in plain language. Name the author, framework, or example when it matters.
+- Only use what's in the readings. Don't invent quotes, page numbers, or facts.
+- "useIt" says how the reading connects to her upcoming work, if it does.
+
+Upcoming work in this class:
+${due || "(none listed)"}
+
+Reply with JSON only:
+{
+  "overview": "2-3 sentences: what this week is about and why it matters",
+  "mustKnow": ["6-10 bullets: the most important ideas across all the readings"],
+  "readings": [{ "title": "exact reading title", "points": ["3-6 bullets"], "useIt": "one sentence, or empty" }],
+  "terms": [["term", "plain definition"]],
+  "questions": ["3-4 questions she should be able to answer or discuss"]
+}
+
+--- READINGS ---
+${week.list.map((r) => `### ${r.title}${r.kind ? ` (${r.kind})` : ""}\n${r.text.slice(0, budget)}`).join("\n\n")}`;
+  let chars = 0;
+  const data = await sample.json(prompt, { cache: false, modelTier: "default", onText: ({ text }) => onProgress?.((chars = text.length)) });
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  return {
+    overview: String(data.overview || ""),
+    mustKnow: arr(data.mustKnow).map(String).slice(0, 12),
+    readings: arr(data.readings).map((r) => ({ title: String(r?.title || ""), points: arr(r?.points).map(String).slice(0, 8), useIt: String(r?.useIt || "") })),
+    terms: arr(data.terms).filter((t) => Array.isArray(t) && t[0]).map((t) => [String(t[0]), String(t[1] || "")]).slice(0, 12),
+    questions: arr(data.questions).map(String).slice(0, 6),
+    readingIds: week.list.map((r) => r.id + ":" + r.text.length),
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function weekNotesText(module, n) {
+  return [`${module}`, "", n.overview, "", "What to know:", ...n.mustKnow.map((b) => `- ${b}`), "",
+    ...n.readings.flatMap((r) => [r.title, ...r.points.map((b) => `- ${b}`), r.useIt ? `  Use it: ${r.useIt}` : "", ""]),
+    n.terms.length ? "Terms:" : "", ...n.terms.map(([t, d]) => `- ${t}: ${d}`), "",
+    n.questions.length ? "Be ready to answer:" : "", ...n.questions.map((q) => `- ${q}`)].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
+}
+
+function weeklyNotesView(courseKey) {
+  const course = courseOf(courseKey);
+  const el = h("article", { class: "lesson notes" });
+  const draw = () => {
+    const ws = readingWeeks(courseKey);
+    el.replaceChildren(...[
+      h("span", { class: "eyebrow" }, course.title),
+      h("h1", {}, "Weekly reading notes"),
+      h("p", { class: "muted", style: "margin:0" }, "Claude reads everything assigned for a week and gives you bullet points of what to know. Readings come in from Canvas with Claude in Chrome, or add one below."),
+      ws.length ? null : h("p", { class: "note" }, "No readings yet. On the Home page, use ", h("b", {}, "Claude in Chrome → Copy the prompt"), " to bring this week's readings in from Canvas, or add one below."),
+      ws.map((w, i) => weekCard(w, i === 0)),
+      addReadingForm()].flat());
+  };
+  const weekCard = (w, open) => {
+    const n = state.weekNotes[w.key];
+    const ids = w.list.map((r) => r.id + ":" + r.text.length);
+    const stale = n && ids.some((id) => !n.readingIds.includes(id));
+    const body = h("div", { class: "week-body" });
+    const status = h("p", { class: "muted", role: "status", style: "margin:0" });
+    const run = async () => {
+      if (!sample) return status.replaceChildren(h("span", { class: "bad" }, "Open Study Hub in Claude to summarize readings."));
+      btn.disabled = true;
+      status.textContent = `Claude is reading ${w.list.length} reading${w.list.length === 1 ? "" : "s"}. This takes about a minute…`;
+      try {
+        state.weekNotes[w.key] = await summarizeWeek(courseKey, w, (c) => (status.textContent = `Writing your notes… ${c.toLocaleString()} characters`));
+        saveWeekNotes();
+        note(`Summarized the readings for ${w.module}.`);
+        draw();
+      } catch (e) {
+        btn.disabled = false;
+        status.replaceChildren(h("span", { class: "bad" }, sampleErrorText(e)));
+      }
+    };
+    const btn = h("button", { class: n ? "btn quiet small" : "btn small", onclick: run }, n ? (stale ? "Update with new readings" : "Redo notes") : "✨ Summarize this week");
+    if (n) body.append(...[
+      n.overview ? h("p", {}, n.overview) : null,
+      h("h3", {}, "What to know"), h("ul", { class: "points" }, n.mustKnow.map((b) => h("li", {}, b))),
+      n.readings.map((r) => {
+        const src = w.list.find((x) => x.title === r.title);
+        return h("details", { class: "reading-notes" }, h("summary", {}, r.title),
+          h("ul", { class: "points" }, r.points.map((b) => h("li", {}, b))),
+          r.useIt ? h("p", { class: "note", style: "margin:.3rem 0 0" }, "Use it: ", r.useIt) : null,
+          src?.url ? h("a", { href: src.url, target: "_blank", rel: "noopener", style: "font-size:.88rem" }, "Open the original ↗") : null);
+      }),
+      n.terms.length ? h("details", { class: "reading-notes" }, h("summary", {}, `Key terms (${n.terms.length})`),
+        h("dl", { class: "defs" }, n.terms.map(([t, d]) => [h("dt", {}, t), h("dd", {}, d)]))) : null,
+      n.questions.length ? [h("h3", {}, "Be ready to answer"), h("ul", { class: "points" }, n.questions.map((q) => h("li", {}, q,
+        " ", h("button", { class: "linkish", onclick: () => tutor.ask(`Quiz me on this from my ${w.module} readings: "${q}". Let me answer first, then tell me what I got right and what I missed.`) }, "Practice with the tutor"))))] : null,
+      h("p", { class: "muted", style: "font-size:.85rem;margin:.4rem 0 0" }, `Made ${new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. `,
+        h("button", { class: "linkish", onclick: async (e) => { try { await navigator.clipboard.writeText(weekNotesText(w.module, n)); e.target.textContent = "Copied ✓"; } catch { showOops("Couldn't copy. Select the notes and copy them instead."); } } }, "Copy notes"))].flat(2));
+    return h("details", { class: "week", open: open || null },
+      h("summary", {}, h("b", {}, w.module), h("span", { class: "muted" }, ` · ${w.list.length} reading${w.list.length === 1 ? "" : "s"}${n ? (stale ? " · new readings" : " · notes ready ✓") : ""}`)),
+      h("p", { class: "muted", style: "margin:.2rem 0;font-size:.88rem" }, w.list.map((r) => r.title).join(" · ")),
+      h("div", { class: "row" }, btn,
+        h("button", { class: "linkish", onclick: () => { if (!confirm(`Remove all ${w.list.length} readings for ${w.module} from your notes?`)) return; state.readings[courseKey] = state.readings[courseKey].filter((r) => r.module !== w.module); delete state.weekNotes[w.key]; saveReadings(courseKey); saveWeekNotes(); draw(); } }, "Remove week")),
+      status, body);
+  };
+  const addReadingForm = () => {
+    let fileText = "";
+    const wk = h("input", { id: "rn-week", value: weekOf(new Date()), list: "rn-weeks" });
+    const weeksList = h("datalist", { id: "rn-weeks" }, readingWeeks(courseKey).map((w) => h("option", { value: w.module })));
+    const title = h("input", { id: "rn-title", placeholder: "e.g. Chapter 3: Ethical decision making" });
+    const text = h("textarea", { id: "rn-text", rows: 5, placeholder: "Paste the reading here, or upload a PDF below…" });
+    const file = h("input", { id: "rn-file", type: "file", accept: "application/pdf,.pdf,.txt,text/plain" });
+    const msg = h("p", { class: "muted", role: "status", style: "margin:0" });
+    file.addEventListener("change", async () => {
+      const f = file.files[0]; if (!f) return;
+      msg.textContent = "Reading the file…";
+      try {
+        fileText = /pdf/i.test(f.type) || /\.pdf$/i.test(f.name) ? await pdfToText(f) : await f.text();
+        if (!title.value) title.value = f.name.replace(/\.[^.]+$/, "");
+        msg.textContent = fileText.length > 200 ? `Read ${fileText.split(/\s+/).length.toLocaleString()} words.` : "I couldn't find text in that file (it may be scanned). Paste the text instead.";
+      } catch (e) { msg.textContent = `Couldn't read that file: ${e.message}`; }
+    });
+    return h("details", { class: "week add-reading" }, h("summary", {}, h("b", {}, "+ Add a reading yourself")),
+      h("div", { class: "form-grid" }, h("label", { for: "rn-week" }, "Week", wk, weeksList), h("label", { for: "rn-title" }, "Title", title)),
+      h("label", { for: "rn-text" }, "Text", text), h("label", { for: "rn-file" }, "Or upload a PDF", file), msg,
+      h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => {
+        const body = (text.value.trim() || fileText).trim();
+        if (body.length < 80) { msg.textContent = "Add the reading first: paste at least a paragraph or upload a PDF."; return; }
+        keepReading(courseKey, { title: title.value.trim() || "Reading", module: wk.value.trim() || weekOf(new Date()), text: body, kind: fileText && !text.value.trim() ? "pdf" : "page" });
+        draw();
+      } }, "Save reading")));
+  };
+  draw();
+  return el;
+}
+
 function classView() {
   const course = courseOf(state.course);
   const builtIn = LESSONS[state.course] || [];
   const mine = state.lessons.filter((l) => l.courseKey === state.course);
   const upcoming = state.deadlines.filter((d) => d.courseKey === state.course && new Date(d.due) > new Date()).slice(0, 6);
   const worksheets = state.worksheets.filter((w) => w.courseKey === state.course);
+  if (!state.lessonId && !builtIn.length && (state.readings[state.course] || []).length) state.lessonId = "notes";
   const item = (id, label, sub, onclick) => h("button", {
     class: `item${state.progress[`${state.course}:${id}`]?.done ? " is-done" : ""}`, "aria-current": state.lessonId === id ? "true" : null, onclick,
   }, label, sub ? h("small", {}, sub) : null);
@@ -2360,11 +2866,15 @@ function classView() {
     h("span", { class: "eyebrow" }, "Lessons and quizzes"),
     topicLessons(state.explore.topic).map((l) => item(l.id, l.title, new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }), () => go("class", "explore", l.id))))
   : h("nav", { class: "side", "aria-label": `${course.title} lessons` },
+    item("notes", "📚 Weekly reading notes", (state.readings[state.course] || []).length ? "what to know each week" : "bullet points from your readings", () => go("class", state.course, "notes")),
     FORMULAS[state.course] ? item("formulas", "📋 Formula sheet", state.course === "sql" ? "patterns for pulling data" : "equations and rules", () => go("class", state.course, "formulas")) : null,
     builtIn.length ? h("span", { class: "eyebrow" }, "Lessons") : null,
     builtIn.map((l) => item(l.id, l.title, null, () => go("class", state.course, l.id))),
+    h("span", { class: "eyebrow" }, "🌱 Your learning path"),
+    pathLessons(state.course).map((l) => item(l.id, l.title, `made ${new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, () => go("class", state.course, l.id))),
+    pathControl(state.course),
     h("span", { class: "eyebrow" }, "From your Canvas"),
-    mine.map((l) => item(l.id, l.title, l.source, () => go("class", state.course, l.id))),
+    mine.filter((l) => !l.path).map((l) => item(l.id, l.title, l.source, () => go("class", state.course, l.id))),
     state.inbox.filter((r) => r.courseKey === state.course).map((r) => item("inbox-" + r.id, r.title, "New from Canvas: tap to build",
       () => { state.builder = { reading: r }; go("class", state.course, "inbox-" + r.id); })),
     item("build", "+ Add from Canvas", "PDF or page text", () => { state.builder = null; go("class", state.course, "build"); }),
@@ -2376,10 +2886,17 @@ function classView() {
       () => { if (d.kind === "quiz") go("class", state.course, "quiz-" + d.id); else { state.builder = { assignment: d }; go("class", state.course, "build"); } })));
 
   const stage = h("main", { class: "stage" });
+  // Caught up on this class? Start the next lesson in the background (once per visit).
+  if (sample && state.course !== "explore" && pathCaughtUp(state.course) && !state.pathBuilding[state.course] && !pathAutoTried.has(state.course)) {
+    pathAutoTried.add(state.course);
+    const key = state.course;
+    setTimeout(() => buildNextLesson(key, { quiet: true }), 1200);
+  }
   const ws = currentWorksheet();
   const quiz = state.lessonId?.startsWith("quiz-") ? state.deadlines.find((d) => "quiz-" + d.id === state.lessonId) : null;
   if (state.lessonId === "formulas") stage.append(h("article", { class: "lesson" }, h("h1", {}, "Formula sheet"), formulaSheet(state.course),
     state.course === "sql" ? h("section", { class: "block" }, h("h2", {}, "The data"), dataSheets()) : null));
+  else if (state.lessonId === "notes") stage.append(weeklyNotesView(state.course));
   else if (ws) stage.append(worksheetView(ws));
   else if (quiz) stage.append(practiceTestView(quiz));
   else if (state.lessonId === "build" || state.lessonId?.startsWith("inbox-") || (!state.lessonId && !builtIn.length)) stage.append(builderView());
@@ -2449,6 +2966,7 @@ function builderView() {
       const rec = { id: "g-" + uid(), courseKey: state.course, title: data.title, source: a ? "assignment prep" : (title.value || "Canvas reading") + (truncatedInput ? " (first part)" : ""), createdAt: new Date().toISOString(), data };
       state.lessons.push(rec);
       saveLessons();
+      if (!a && !reading) keepReading(state.course, { title: title.value || data.title, text, kind: mode === "pdf" ? "pdf" : "page" });
       if (reading) { state.inbox = state.inbox.filter((x) => x.id !== reading.id); saveInbox(); }
       state.builder = null;
       go("class", state.course, rec.id);

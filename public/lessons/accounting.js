@@ -290,4 +290,49 @@ export default [
       },
     ],
   },
+  {
+    id: "build-entries",
+    title: "5. Build journal entries yourself",
+    blocks: [
+      {
+        type: "objectives",
+        text: "Now nothing is filled in for you. For each transaction, pick the accounts from the dropdown, then type each amount in the Debit or Credit column. You decide which accounts change, which side each goes on, and how much, the same way you'll do it on homework and exams. Some transactions need three lines.",
+      },
+      {
+        type: "text",
+        html: `<p><b>Your 4-step routine for every transaction:</b></p>
+<ol><li>What accounts changed? (Look for cash in or out, something bought, something owed, something earned.)</li>
+<li>Did each one go up or down?</li>
+<li>Use DEALER: Dividends, Expenses, Assets go up with a <b>debit</b>; Liabilities, Equity, Revenue go up with a <b>credit</b>.</li>
+<li>Check that total debits = total credits.</li></ol>
+<p class="muted">Convention is to list debits first, but the order of your lines doesn't matter here. What matters is the right account, the right side, and the right amount.</p>`,
+      },
+      {
+        type: "journalBuilder",
+        title: "Build each entry",
+        accounts: ["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Equipment", "Accounts Payable", "Notes Payable", "Unearned Revenue", "Wages Payable", "Common Stock", "Dividends", "Service Revenue", "Rent Expense", "Wages Expense", "Utilities Expense", "Supplies Expense", "Insurance Expense"],
+        rows: [
+          { transaction: "The owners invest $15,000 cash in the business in exchange for common stock.", entries: [{ account: "Cash", side: "debit", amount: 15000 }, { account: "Common Stock", side: "credit", amount: 15000 }] },
+          { transaction: "Pay $1,200 cash for a 12-month insurance policy that starts next month.", entries: [{ account: "Prepaid Insurance", side: "debit", amount: 1200 }, { account: "Cash", side: "credit", amount: 1200 }] },
+          { transaction: "Buy $8,000 of equipment, paying $2,000 cash and signing a note for the rest.", entries: [{ account: "Equipment", side: "debit", amount: 8000 }, { account: "Cash", side: "credit", amount: 2000 }, { account: "Notes Payable", side: "credit", amount: 6000 }] },
+          { transaction: "Perform $2,400 of services for a customer, who will pay next month.", entries: [{ account: "Accounts Receivable", side: "debit", amount: 2400 }, { account: "Service Revenue", side: "credit", amount: 2400 }] },
+          { transaction: "Receive the $300 utility bill for this month. You'll pay it later.", entries: [{ account: "Utilities Expense", side: "debit", amount: 300 }, { account: "Accounts Payable", side: "credit", amount: 300 }] },
+          { transaction: "A customer pays $900 in advance for work you'll do in two months.", entries: [{ account: "Cash", side: "debit", amount: 900 }, { account: "Unearned Revenue", side: "credit", amount: 900 }] },
+          { transaction: "Collect $1,000 from the customer who owes you from earlier.", entries: [{ account: "Cash", side: "debit", amount: 1000 }, { account: "Accounts Receivable", side: "credit", amount: 1000 }] },
+          { transaction: "Pay employees $1,500 in wages for work they did this month.", entries: [{ account: "Wages Expense", side: "debit", amount: 1500 }, { account: "Cash", side: "credit", amount: 1500 }] },
+          { transaction: "Pay a $400 cash dividend to the owners.", entries: [{ account: "Dividends", side: "debit", amount: 400 }, { account: "Cash", side: "credit", amount: 400 }] },
+          { transaction: "Do $1,800 of services: the customer pays $500 now and owes the rest.", entries: [{ account: "Cash", side: "debit", amount: 500 }, { account: "Accounts Receivable", side: "debit", amount: 1300 }, { account: "Service Revenue", side: "credit", amount: 1800 }] },
+        ],
+      },
+      {
+        type: "definitions",
+        items: [
+          ["Compound entry", "A journal entry with more than two accounts, like buying equipment with part cash and part loan."],
+          ["Prepaid expense", "Paying before you use something (insurance, rent). It's an asset until it's used up."],
+          ["Unearned revenue", "Cash received before doing the work. It's a liability until you earn it."],
+          ["On account", "On credit: creates Accounts Receivable (they owe you) or Accounts Payable (you owe them)."],
+        ],
+      },
+    ],
+  },
 ];
