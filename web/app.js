@@ -60,7 +60,12 @@ function celebrate() {
   if (celebrating || !celebrationsOn()) return;
   celebrating = true;
   const monkey = Math.random() < 0.4;
-  const cheer = CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  const cheer = (monkey ? "😜 " : "😉 ") + CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  const fx = window.FX ? FX.play(monkey ? "monkey" : "unicorn", cheer) : Promise.resolve(false);
+  fx.then((ok) => { if (ok) celebrating = false; else flatCelebrate(monkey, cheer); });
+}
+// The 2D version, for when 3D can't run.
+function flatCelebrate(monkey, cheer) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const drops = reduced ? [] : Array.from({ length: 26 }, () => {
     const d = h("span", { class: "gumdrop" });
@@ -77,10 +82,25 @@ function celebrate() {
       h("div", { class: "rainbow" }),
       h("div", { class: `dancer ${monkey ? "monkey" : "unicorn"}` }, monkey ? "🐒" : "🦄"),
       monkey ? h("div", { class: "prop" }, "🍌") : null,
-      h("div", { class: "bubble" }, monkey ? "😜 " : "😉 ", cheer)));
+      h("div", { class: "bubble" }, cheer)));
   document.body.append(el);
   setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
 }
+// Wrong answer: a very grumpy (cartoon) monster.
+const GROWLS = ["GRRR! Try again!", "RAWR! Not quite!", "Grr… so close!", "HMPH! One more try!", "ROAR! Check that one again!"];
+function grumble() {
+  if (celebrating || !celebrationsOn()) return;
+  celebrating = true;
+  const text = "😤 " + GROWLS[Math.floor(Math.random() * GROWLS.length)];
+  const fx = window.FX ? FX.play("monster", text) : Promise.resolve(false);
+  fx.then((ok) => {
+    if (ok) { celebrating = false; return; }
+    const el = h("div", { class: "celebrate", "aria-hidden": "true" }, h("div", { class: "stage-pop" }, h("div", { class: "dancer monster" }, "👹"), h("div", { class: "bubble angry" }, text)));
+    document.body.append(el);
+    setTimeout(() => { el.remove(); celebrating = false; }, 2000);
+  });
+}
+if (celebrationsOn()) setTimeout(() => window.FX?.preload(), 4000); // warm up 3D so the first one plays instantly
 
 /* ---------- Explore's gold sea: follows the pointer, ripples on taps and moves, drifts with scroll ---------- */
 let sea = null;
@@ -575,6 +595,7 @@ function newTracker(lesson) {
         saved.missed = [...saved.missed, miss].slice(-20);
       }
       if (ok && !this.solved.has(id)) celebrate();
+      else if (!ok) grumble();
       if (ok) this.solved.add(id);
       saved.total = this.count;
       saved.solved = Math.max(saved.solved || 0, this.solved.size);
@@ -2614,7 +2635,7 @@ function topbar() {
       h("button", { class: "tab", "data-course": c.key, "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
       h("button", { class: "tab", "data-course": "explore", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
       h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")),
-    h("button", { class: "linkish cheer-toggle", "aria-pressed": String(celebrationsOn()), title: "Dancing unicorn when you get something right",
+    h("button", { class: "linkish cheer-toggle", "aria-pressed": String(celebrationsOn()), title: "3D unicorn or monkey when you're right, grumpy monster when you're not",
       onclick: (e) => { const on = !celebrationsOn(); try { localStorage.setItem("studyhub:celebrate", on ? "on" : "off"); } catch {} e.currentTarget.setAttribute("aria-pressed", String(on)); e.currentTarget.textContent = on ? "🦄 Party on" : "🦄 Party off"; if (on) celebrate(); } },
       celebrationsOn() ? "🦄 Party on" : "🦄 Party off"));
 }

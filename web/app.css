@@ -515,3 +515,13 @@ body[data-course="explore"] :is(.hello, .xhead) .eyebrow { color: #5c3f00; }
 @keyframes bubble-in { 0% { opacity: 0; transform: translateX(8px) scale(.4); } 15% { opacity: 1; transform: translateX(8px) scale(1.1); } 22% { transform: translateX(8px) scale(1); } 100% { opacity: 1; transform: translateX(8px) scale(1); } }
 .celebrate.still .stage-pop, .celebrate.still .dancer, .celebrate.still .prop, .celebrate.still .bubble { animation: none; }
 .celebrate.still .stage-pop { transform: translateX(-50%); }
+
+/* 3D celebrations */
+.fx3d { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 60; pointer-events: none; }
+.fx-bubble { position: fixed; z-index: 61; pointer-events: none; transform: translate(-10%, -120%); white-space: nowrap; background: #fff; color: #3a1a4a; font-weight: 800; font-size: 1rem;
+  padding: .35rem .75rem; border-radius: 16px 16px 16px 4px; box-shadow: 0 6px 18px rgb(0 0 0 / .25); transition: opacity .2s; }
+.fx-bubble.angry, .bubble.angry { background: #ff3b3b; color: #fff; font-size: 1.1rem; letter-spacing: .02em; box-shadow: 0 6px 22px rgb(255 0 0 / .45); }
+body.fx-grr::after { content: ""; position: fixed; inset: 0; z-index: 59; pointer-events: none; box-shadow: inset 0 0 120px rgb(255 30 30 / .55); animation: grr-pulse .5s ease-in-out 4 alternate; }
+@keyframes grr-pulse { from { opacity: .35; } to { opacity: 1; } }
+.monster { animation: monster-stomp .25s ease-in-out 6 alternate both; }
+@keyframes monster-stomp { from { transform: translateY(0) rotate(-8deg) scale(1.1); } to { transform: translateY(-10px) rotate(8deg) scale(1.2); } }

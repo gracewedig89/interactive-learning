@@ -28,7 +28,8 @@
     "marked": "^18.0.14",
     "node-cron": "^4.6.0",
     "pdfjs-dist": "3.11.174",
-    "sql.js": "^1.14.2"
+    "sql.js": "^1.14.2",
+    "three": "^0.160.0"
   },
   "type": "module",
   "private": true,

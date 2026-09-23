@@ -17,7 +17,9 @@ const vendor = {
   "pdf.min.js": "node_modules/pdfjs-dist/build/pdf.min.js",
   "pdf.worker.min.js": "node_modules/pdfjs-dist/build/pdf.worker.min.js",
   "jspdf.umd.min.js": "node_modules/jspdf/dist/jspdf.umd.min.js",
+  "three.min.js": "node_modules/three/build/three.min.js", // loaded on demand by fx3d.js
 };
+const onDemand = ["pdf.worker.min.js", "three.min.js"];
 for (const [name, src] of Object.entries(vendor)) fs.copyFileSync(new URL(src, root), new URL("vendor/" + name, out));
 
 // Keep "</script>" inside embedded data from closing the tag.
@@ -31,13 +33,14 @@ const html = `<title>Study Hub</title>
 ${read("web/app.css")}
 </style>
 <div id="app"></div>
-${Object.keys(vendor).filter((n) => n !== "pdf.worker.min.js").map((n) => `<script src="vendor/${n}"></script>`).join("\n")}
+${Object.keys(vendor).filter((n) => !onDemand.includes(n)).map((n) => `<script src="vendor/${n}"></script>`).join("\n")}
 <script>
 window.LESSONS = ${json({ accounting, sql, "language-arts": [], biology: [] })};
 window.FORMULAS = ${json(formulas)};
 window.PRACTICE = ${json({ schema: read("public/lessons/practice-db.sql"), data: read("public/lessons/practice-data.sql") })};
 </script>
 <script>
+${read("web/fx3d.js")}
 ${read("web/app.js")}
 </script>
 `;
