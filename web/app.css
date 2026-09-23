@@ -404,3 +404,25 @@ table.ref td:first-child { font-weight: 650; }
 .path-ctl .btn { justify-self: start; }
 .path-ctl p { margin: 0; font-size: .88rem; display: flex; align-items: center; gap: .4rem; }
 .spinner.small { width: 14px; height: 14px; border-width: 2px; display: inline-block; }
+
+/* The middle of each class page takes on that class's color, so the white/dark cards stand out. */
+[data-course="accounting"] { --stage-bg: #fbdcee; }
+[data-course="sql"] { --stage-bg: #cff3ef; }
+[data-course="language-arts"] { --stage-bg: #dfe3ff; }
+[data-course="biology"] { --stage-bg: #d5f3de; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-course="accounting"] { --stage-bg: #3d1831; }
+  :root:not([data-theme="light"]) [data-course="sql"] { --stage-bg: #0e3533; }
+  :root:not([data-theme="light"]) [data-course="language-arts"] { --stage-bg: #252a55; }
+  :root:not([data-theme="light"]) [data-course="biology"] { --stage-bg: #143823; }
+}
+:root[data-theme="dark"] [data-course="accounting"] { --stage-bg: #3d1831; }
+:root[data-theme="dark"] [data-course="sql"] { --stage-bg: #0e3533; }
+:root[data-theme="dark"] [data-course="language-arts"] { --stage-bg: #252a55; }
+:root[data-theme="dark"] [data-course="biology"] { --stage-bg: #143823; }
+body[data-course] .classview > .stage {
+  background:
+    radial-gradient(circle at 12% 8%, rgb(255 255 255 / .16), transparent 32%),
+    radial-gradient(circle at 88% 55%, rgb(255 255 255 / .10), transparent 38%),
+    var(--stage-bg);
+}
