@@ -426,3 +426,22 @@ body[data-course] .classview > .stage {
     radial-gradient(circle at 88% 55%, rgb(255 255 255 / .10), transparent 38%),
     var(--stage-bg);
 }
+
+/* Explore: sparkly rose gold into gold, with a sheer silver shimmer. */
+[data-course="explore"] {
+  --sparkle: linear-gradient(135deg, #f7d6c8 0%, #e9a98c 20%, #f2cf78 45%, #d9aa45 60%, #eef0f3 82%, #c3c9d2 100%);
+  --glow: 0 2px 12px rgb(233 169 140 / .45);
+  --accent: #9b5a2c; --accent-ink: #3d220e; --accent-soft: #f9e9df;
+  --stage-bg: #f8e9e0;
+  --stage-sheen: linear-gradient(135deg, rgb(233 169 140 / .30) 0%, rgb(242 207 120 / .26) 45%, rgb(214 219 226 / .45) 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-course="explore"] { --accent: #f2c79a; --accent-soft: #3a291f; --glow: 0 2px 14px rgb(242 199 154 / .38); --stage-bg: #2f231d;
+    --stage-sheen: linear-gradient(135deg, rgb(233 169 140 / .16) 0%, rgb(242 207 120 / .10) 45%, rgb(200 208 218 / .14) 100%); }
+}
+:root[data-theme="dark"] [data-course="explore"] { --accent: #f2c79a; --accent-soft: #3a291f; --glow: 0 2px 14px rgb(242 199 154 / .38); --stage-bg: #2f231d;
+  --stage-sheen: linear-gradient(135deg, rgb(233 169 140 / .16) 0%, rgb(242 207 120 / .10) 45%, rgb(200 208 218 / .14) 100%); }
+/* Explore pages aren't all class layouts, so tint the whole page and keep the sidebar and tutor neutral. */
+body[data-course="explore"] { background: radial-gradient(circle at 15% 10%, rgb(255 255 255 / .18), transparent 30%), var(--stage-sheen), var(--stage-bg); background-attachment: fixed; }
+body[data-course="explore"] .classview > .stage { background: none; }
+body[data-course="explore"] .side { background: var(--ground); }

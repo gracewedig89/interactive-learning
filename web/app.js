@@ -2549,13 +2549,14 @@ function topbar() {
     h("button", { class: "brand", onclick: () => go("home") }, h("span", { class: "mark", "aria-hidden": "true" }, "UT"), "Study Hub"),
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
       h("button", { class: "tab", "data-course": c.key, "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
-      h("button", { class: "tab", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
+      h("button", { class: "tab", "data-course": "explore", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
       h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")));
 }
 
 function render() {
   document.body.classList.remove("tutor-open");
   if (state.view === "class" && COURSES.some((c) => c.key === state.course)) document.body.dataset.course = state.course;
+  else if (state.view === "explore" || state.course === "explore") document.body.dataset.course = "explore";
   else delete document.body.dataset.course;
   document.body.querySelector(".fab")?.remove();
   app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "explore" ? exploreView() : classView());
