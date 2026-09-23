@@ -58,7 +58,8 @@ const local = {
 const store = {
   async get(name) {
     if (db) {
-      try { const s = await db.doc(`data/users/${me}/${name}`).get(); if (s.exists) return s.data(); } catch (e) { console.warn(e); }
+      // Saved data comes back read-only; work on an editable copy.
+      try { const s = await db.doc(`data/users/${me}/${name}`).get(); if (s.exists) return JSON.parse(JSON.stringify(s.data())); } catch (e) { console.warn(e); }
     }
     return local.get(name);
   },
