@@ -630,3 +630,5 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .voice-panel p { grid-column: 1 / -1; }
 .voice-panel input[type="range"] { padding: 0; accent-color: var(--accent); }
 @media (max-width: 760px) { .voice-panel { grid-template-columns: minmax(0, 1fr); } }
+.mikey { position: absolute; inset: 0; display: grid; place-items: end center; }
+.mikey svg { width: auto; height: 100%; max-width: 100%; display: block; }
