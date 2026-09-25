@@ -626,3 +626,7 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .vplayer { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 .vcard { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 760px) { .vplayer { padding: 8px; } .vhead .eyebrow { display: none; } .vhead .vtitle { font-size: 1.05rem; } .b-table { font-size: .95rem; } }
+.voice-panel { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: .6rem; align-items: end; background: var(--sunken); border-radius: 10px; padding: .6rem .8rem; }
+.voice-panel p { grid-column: 1 / -1; }
+.voice-panel input[type="range"] { padding: 0; accent-color: var(--accent); }
+@media (max-width: 760px) { .voice-panel { grid-template-columns: minmax(0, 1fr); } }

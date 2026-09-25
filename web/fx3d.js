@@ -335,6 +335,7 @@ window.FX = (() => {
       g.add(hive);
       const bees = [0, 1, 2].map(() => { const b = K.group(0, 0, 0, K.ball(0.12, K.mat(0xffd21a), 0, 0, 0, 1.3, 1, 1), K.ball(0.1, K.mat(0xffffff, { transparent: true, opacity: 0.8 }), 0, 0.12, 0, 0.6, 0.3, 1)); g.add(b); return b; });
       return { g, stand: 0.87, tick: (t) => bees.forEach((b, i) => b.position.set(2.3 + Math.cos(t * 4 + i * 2) * 0.9, 2.2 + Math.sin(t * 6 + i) * 0.5, Math.sin(t * 4 + i * 2) * 0.6)) }; } },
+    chipmunk: { sky: ["#ffe3f3", "#c9b8ff"], drop: "petal", build: (T, K) => castleScene(T, K) },
     dolphin: { sky: ["#e2f7ff", "#6cc8ff"], drop: "bubble", build: (T, K) => {
       const g = new T.Group();
       const sun = K.ball(0.7, K.mat(0xffe14d, { emissive: 0xffc21a, emissiveIntensity: 0.9 }), 2.4, 4.3, -2.6); g.add(sun);
@@ -550,7 +551,7 @@ window.FX = (() => {
     setTimeout(() => c.remove(), 1900);
   }
 
-  /* ---------- Mr. Maxwell, the video teacher (an original big-headed school counselor) ---------- */
+  /* ---------- Mr. Mikey, the video teacher (an original big-headed school counselor) ---------- */
   function teacherModel(T, K) {
     const skin = K.mat(0xf6d2b4), vest = K.mat(0x6f9bd6, { roughness: 0.8 }), shirt = K.mat(0xffffff), tie = K.mat(0xd8323c), hair = K.mat(0x8a6a4a), dark = K.mat(0x1b1030);
     const g = new T.Group();
@@ -627,6 +628,77 @@ window.FX = (() => {
     };
   }
 
+  /* ---------- five in a row: a chipmunk offers an apple, with a princess and castle behind (original characters) ---------- */
+  function castleScene(T, K) {
+    const g = new T.Group();
+    g.add(mound(T, K, 0x7fd65b));
+    const castle = K.group(0.6, 0.4, -2.6);
+    const wall = K.mat(0xf4ecff, { roughness: 0.6 }), roof = K.mat(0xff8fc6, { roughness: 0.4 });
+    castle.add(K.at(new T.Mesh(new T.BoxGeometry(3, 1.8, 0.8), wall), 0, 0.9, 0));
+    [[-1.6, 3.2], [1.6, 3.2], [-0.6, 3.8], [0.7, 4.4]].forEach(([x, h]) => {
+      castle.add(K.cyl(0.35, 0.38, h, wall, x, h / 2, 0.1), K.cone(0.5, 1.0, roof, x, h + 0.5, 0.1));
+      castle.add(K.cyl(0.015, 0.015, 0.5, K.mat(0x8a5a34), x, h + 1.25, 0.1), K.at(new T.Mesh(new T.BoxGeometry(0.28, 0.16, 0.02), K.mat(0xffd84d)), x + 0.15, h + 1.4, 0.1));
+      castle.add(K.ball(0.1, K.mat(0x9fd8ff, { emissive: 0x9fd8ff, emissiveIntensity: 0.4 }), x, h * 0.7, 0.45, 0.8, 1.3, 0.3));
+    });
+    castle.add(K.ball(0.35, K.mat(0x8a5a34), 0, 0.35, 0.42, 1, 1.3, 0.2));
+    g.add(castle);
+    // A princess waving from beside the castle.
+    const princess = K.group(-2.35, 0.55, -0.7);
+    const gown = K.mat(0x9fd0ff, { roughness: 0.35 }), skin = K.mat(0xffd9c2), hair = K.mat(0xb5652d);
+    princess.add(K.cone(0.9, 1.8, gown, 0, 0.9, 0), K.ball(0.3, gown, 0, 1.95, 0, 1, 1.2, 0.8));
+    princess.add(K.cyl(0.08, 0.08, 0.2, skin, 0, 2.3, 0));
+    const phead = K.group(0, 2.62, 0, K.ball(0.3, skin, 0, 0, 0), K.ball(0.34, hair, 0, 0.06, -0.1, 1, 1, 0.95), K.ball(0.28, hair, 0, -0.35, -0.2, 0.9, 1.6, 0.6));
+    for (const s of [-1, 1]) phead.add(K.ball(0.05, K.mat(0x1b1030), s * 0.11, 0.02, 0.27), K.ball(0.06, K.mat(0xff9fc0), s * 0.18, -0.08, 0.23, 1, 0.6, 0.4));
+    const tiara = new T.Mesh(new T.TorusGeometry(0.24, 0.03, 8, 24), K.mat(0xffcf3f, { metalness: 0.7, roughness: 0.2 })); tiara.rotation.x = Math.PI / 2 - 0.3; tiara.position.set(0, 0.28, 0.02); phead.add(tiara);
+    [-0.12, 0, 0.12].forEach((x) => phead.add(K.cone(0.04, x ? 0.1 : 0.16, K.mat(0xffcf3f, { metalness: 0.7, roughness: 0.2 }), x, 0.36, 0.12)));
+    princess.add(phead);
+    const wave = K.group(0.28, 2.1, 0, K.cyl(0.06, 0.06, 0.6, skin, 0, 0.3, 0)); princess.add(wave);
+    const other = K.group(-0.28, 2.05, 0, K.cyl(0.06, 0.06, 0.55, skin, 0, -0.27, 0)); other.rotation.z = -0.3; princess.add(other);
+    g.add(princess);
+    const stump = K.group(0, 0.5, 0.4, K.cyl(0.75, 0.85, 0.7, K.mat(0x8a5a34), 0, 0, 0), K.cyl(0.72, 0.72, 0.02, K.mat(0xe8c39a), 0, 0.36, 0));
+    g.add(stump);
+    [[-1.5, 0.35, 0xff8fc6], [1.9, 0.2, 0xffe14d], [2.5, 0.0, 0xb48cff], [-2.9, 0.0, 0xffffff]].forEach(([x, y, c]) => g.add(flower(T, K, x, y, 0.5, c)));
+    return { g, stand: 1.4, tick: (t) => { wave.rotation.z = -0.4 + Math.sin(t * 6) * 0.5; princess.rotation.z = Math.sin(t * 1.5) * 0.04; phead.rotation.z = Math.sin(t * 2) * 0.1; } };
+  }
+  function chipmunk(T, K) {
+    const fur = K.mat(0xb8743a), light = K.mat(0xf6dcb8), dark = K.mat(0x3a2410), red = K.mat(0xe8242e, { roughness: 0.25 });
+    const g = new T.Group();
+    g.add(K.ball(0.7, fur, 0, 0.95, 0, 0.95, 1.1, 0.85), K.ball(0.48, light, 0, 0.85, 0.35, 1, 1.2, 0.6));
+    for (const s of [-1, 1]) { const st = K.ball(0.1, dark, s * 0.45, 1.05, -0.2, 0.5, 2.8, 0.5); st.rotation.z = s * 0.2; g.add(st); }
+    const head = K.group(0, 1.95, 0.05, K.ball(0.55, fur, 0, 0, 0));
+    for (const s of [-1, 1]) head.add(K.ball(0.26, light, s * 0.3, -0.18, 0.35, 1, 0.85, 0.8));
+    head.add(K.ball(0.07, K.mat(0x3a1a24), 0, -0.02, 0.55), K.ball(0.3, dark, 0, 0.3, 0.2, 0.25, 0.7, 1));
+    const winkEye = K.eye(0.2, 0.12, 0.48, 0.1), other = K.eye(-0.2, 0.12, 0.48, 0.1);
+    head.add(winkEye, other);
+    for (const s of [-1, 1]) head.add(K.ball(0.14, fur, s * 0.38, 0.45, -0.05, 1, 1.1, 0.5), K.ball(0.08, light, s * 0.38, 0.45, 0.02, 1, 1.1, 0.4));
+    const smile = new T.Mesh(new T.TorusGeometry(0.1, 0.022, 6, 16, Math.PI), dark); smile.rotation.z = Math.PI; smile.position.set(0, -0.2, 0.56); head.add(smile);
+    head.add(K.at(new T.Mesh(new T.BoxGeometry(0.1, 0.09, 0.03), K.mat(0xffffff)), 0, -0.3, 0.55));
+    g.add(head);
+    const tail = K.group(0, 0.6, -0.6);
+    for (let i = 0; i < 7; i++) tail.add(K.ball(0.32 - i * 0.015, i % 3 === 1 ? dark : fur, 0, i * 0.28, -Math.sin(i * 0.45) * 0.55 - 0.1));
+    g.add(tail);
+    const arms = [-1, 1].map((s) => { const a = K.group(s * 0.5, 1.35, 0.2, K.cyl(0.08, 0.07, 0.45, fur, 0, -0.22, 0), K.ball(0.09, light, 0, -0.46, 0)); g.add(a); return a; });
+    const apple = K.group(0, 0, 0, K.ball(0.26, red, 0, 0, 0, 1, 0.92, 1), K.cyl(0.02, 0.02, 0.14, K.mat(0x5a3a1a), 0, 0.27, 0));
+    const leaf = K.ball(0.08, K.mat(0x3fbf3f), 0.08, 0.3, 0, 1.4, 0.4, 0.6); leaf.rotation.z = -0.6; apple.add(leaf);
+    apple.add(K.ball(0.06, K.mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 0.5 }), -0.1, 0.1, 0.2));
+    g.add(apple);
+    for (const s of [-1, 1]) g.add(K.ball(0.16, fur, s * 0.3, 0.12, 0.2, 1, 0.5, 1.4));
+    g.scale.setScalar(1.3);
+    return { g, head, winkEye, headTop: new T.Vector3(0.3, 2.9, 0), dur: 3.9, update(t, dt, fx) {
+      const twirl = fx.seg(t, 0.4, 1.6), offer = fx.seg(t, 1.7, 2.2), wink = fx.seg(t, 2.3, 2.8);
+      g.position.y = fx.base + Math.abs(Math.sin(twirl * Math.PI * 2)) * 0.9;
+      g.rotation.y = Math.PI * 4 * ease.inOut(twirl) + (offer > 0 ? Math.sin(t * 2) * 0.1 : 0);
+      arms[0].rotation.set(-offer * 1.3, 0, twirl > 0 && twirl < 1 ? -2.4 : -0.2);
+      arms[1].rotation.set(-offer * 1.3, 0, twirl > 0 && twirl < 1 ? 2.4 : 0.2);
+      apple.position.set(0, 1.0 + offer * 0.3, 0.55 + offer * 0.55);
+      apple.rotation.y = t * 1.5;
+      head.rotation.z = wink > 0 ? 0.22 * Math.sin(Math.min(1, wink * 2) * Math.PI / 2) : Math.sin(t * 6) * 0.08;
+      winkEye.scale.y = wink > 0.1 && wink < 0.7 ? 0.12 : 1;
+      tail.rotation.x = Math.sin(t * 5) * 0.2;
+      fx.shake(0);
+    } };
+  }
+
   /* ---------- animation ---------- */
   const ease = { outBack: (p) => { const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); }, inOut: (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2) };
   const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
@@ -661,7 +733,7 @@ window.FX = (() => {
       scene3 = sc.build(T, K);
       base = scene3.stand;
       stage.add(skyDisc(T, ...sc.sky), scene3.g);
-      who = kind === "dolphin" ? dolphin(T, K) : kind === "monkey" ? monkey(T, K) : ZOO[kind] ? critter(T, K, ZOO[kind]) : unicorn(T, K);
+      who = kind === "chipmunk" ? chipmunk(T, K) : kind === "dolphin" ? dolphin(T, K) : kind === "monkey" ? monkey(T, K) : ZOO[kind] ? critter(T, K, ZOO[kind]) : unicorn(T, K);
       who.g.position.y = base;
       if (who.swimmer) who.g.position.z = -0.2;
       stage.add(who.g);
@@ -694,7 +766,7 @@ window.FX = (() => {
     const DUR = who.dur || (angry ? 2.6 : 3.0);
     let shakeAmt = 0;
     const fxc = {
-      ease, seg, get outP() { return seg((performance.now() - start) / 1000, DUR - 0.4, DUR); },
+      ease, seg, base, get outP() { return seg((performance.now() - start) / 1000, DUR - 0.4, DUR); },
       shake: (a) => (shakeAmt = a),
       crack: crackScreen,
       setText: (t) => (bubble.textContent = t),
@@ -820,7 +892,7 @@ window.FX = (() => {
         headWorld.project(camera);
         bubble.style.left = `${((headWorld.x + 1) / 2) * W}px`;
         bubble.style.top = `${((1 - headWorld.y) / 2) * H}px`;
-        const showAt = angry ? 0.45 : kind === "unicorn" || kind === "dolphin" ? 2.0 : 0.9;
+        const showAt = angry ? 0.45 : kind === "unicorn" || kind === "dolphin" ? 2.0 : kind === "chipmunk" ? 1.75 : 0.9;
         bubble.style.opacity = t > showAt && t < DUR - 0.35 ? "1" : "0";
 
         renderer.render(scene, camera);

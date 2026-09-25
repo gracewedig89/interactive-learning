@@ -56,16 +56,27 @@ const CHEERS = ["Nailed it!", "Yesss!", "You got it!", "So smart!", "Correct!", 
 const GUMDROP_COLORS = ["#ff6fb5", "#ffd84d", "#5fe0d0", "#9f8cff", "#7fe3a0", "#ff9a5c", "#ff5c7a"];
 let celebrating = false, grumpy = false, cheerNext = false;
 function celebrationsOn() { try { return localStorage.getItem("studyhub:celebrate") !== "off"; } catch { return true; } }
-function celebrate() {
+// Right answers in a row, across lessons (a wrong answer resets it).
+function bumpStreak(ok) {
+  let n = 0;
+  try { n = Number(localStorage.getItem("studyhub:inarow")) || 0; } catch {}
+  n = ok ? n + 1 : 0;
+  try { localStorage.setItem("studyhub:inarow", String(n)); } catch {}
+  return n;
+}
+let queuedSpecial = null;
+function celebrate(special = null, streak = 0) {
   if (!celebrationsOn()) return;
+  if (special) queuedSpecial = { special, streak };
   // Got it right while the monster is still stomping? Cut it short and cheer.
-  if (celebrating) { if (grumpy) { cheerNext = true; window.FX?.stop(); document.querySelector(".celebrate")?.remove(); } return; }
+  if (celebrating) { if (grumpy || special) { cheerNext = true; window.FX?.stop(); document.querySelector(".celebrate")?.remove(); } return; }
   celebrating = true;
-  const animal = nextAnimal();
+  const sp = queuedSpecial; queuedSpecial = null;
+  const animal = sp ? sp.special : nextAnimal();
   const monkey = animal === "monkey";
-  const cheer = `${window.FX?.emoji[animal] || "😉"} ${CHEERS[Math.floor(Math.random() * CHEERS.length)]} 😉`;
+  const cheer = animal === "chipmunk" ? `🍎 ${sp.streak} in a row! Would a pretty girl like an apple? 😉` : `${window.FX?.emoji[animal] || "😉"} ${CHEERS[Math.floor(Math.random() * CHEERS.length)]} 😉`;
   const fx = window.FX ? FX.play(animal, cheer) : Promise.resolve(false);
-  fx.then((ok) => { if (ok) celebrating = false; else flatCelebrate(monkey, cheer, window.FX?.emoji[animal]); });
+  fx.then((ok) => { if (ok) { celebrating = false; if (cheerNext) { cheerNext = false; celebrate(); } } else flatCelebrate(monkey, cheer, animal === "chipmunk" ? "🐿️🍎" : window.FX?.emoji[animal]); });
 }
 // A different animal every time: go through the whole zoo in a shuffled order before any repeats.
 function nextAnimal(all = window.FX?.animals || ["unicorn", "monkey"], key = "zoo") {
@@ -100,7 +111,10 @@ function flatCelebrate(monkey, cheer, emoji) {
       monkey ? h("div", { class: "prop" }, "🍌") : null,
       h("div", { class: "bubble" }, cheer)));
   document.body.append(el);
-  setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
+  const t = setTimeout(end, reduced ? 1400 : 2600);
+  let ended = false;
+  function end() { if (ended) return; ended = true; clearTimeout(t); clearInterval(w); el.remove(); celebrating = false; if (cheerNext) { cheerNext = false; celebrate(); } }
+  const w = setInterval(() => { if (!el.isConnected) end(); }, 150);
 }
 // Wrong answer: a very grumpy (cartoon) monster.
 const GROWLS = {
@@ -622,8 +636,8 @@ function newTracker(lesson) {
       if (!ok && miss && !saved.missed.some((m) => m.concept === miss.concept)) {
         saved.missed = [...saved.missed, miss].slice(-20);
       }
-      if (ok && !this.solved.has(id)) celebrate();
-      else if (!ok) grumble();
+      if (ok && !this.solved.has(id)) { const n = bumpStreak(true); celebrate(n > 0 && n % 5 === 0 ? "chipmunk" : null, n); }
+      else if (!ok) { bumpStreak(false); grumble(); }
       if (ok) this.solved.add(id);
       saved.total = this.count;
       saved.solved = Math.max(saved.solved || 0, this.solved.size);
@@ -2791,15 +2805,15 @@ function goalsView() {
   return h("div", { class: "goalsview" }, main, advisor.mount());
 }
 
-/* ---------- video lessons: Mr. Maxwell explains with a chalkboard ---------- */
-const TEACHER = "Mr. Maxwell";
+/* ---------- video lessons: Mr. Mikey explains with a chalkboard ---------- */
+const TEACHER = "Mr. Mikey";
 let videoCache = null;
-async function getVideo(key) { videoCache ||= (await store.get("videos"))?.items || {}; return videoCache[key]; }
+async function getVideo(key) { videoCache ||= (await store.get("videos-mikey"))?.items || {}; return videoCache[key]; }
 function putVideo(key, script) {
   videoCache[key] = { ...script, at: Date.now() };
   const keys = Object.keys(videoCache).sort((a, b) => videoCache[b].at - videoCache[a].at);
   for (const k of keys.slice(30)) delete videoCache[k];
-  store.set("videos", { items: videoCache });
+  store.set("videos-mikey", { items: videoCache });
 }
 
 async function makeVideoScript({ courseKey, topic, material, term }) {
@@ -2862,11 +2876,38 @@ const BOARD = {
 // Speech: the browser's built-in voice (free, no downloads). Falls back to timed captions.
 const speech = {
   get ok() { return "speechSynthesis" in window; },
-  voice() {
-    const vs = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
-    return vs.find((v) => /daniel|fred|alex|david|guy|mark|google us english|male/i.test(v.name)) || vs.find((v) => /en-US/i.test(v.lang)) || vs[0] || null;
+  // Natural / neural / enhanced voices sound far less robotic than the basic ones.
+  score(v) {
+    let n = 0;
+    if (/natural|neural|online|premium|enhanced|siri/i.test(v.name)) n += 10;
+    if (/google/i.test(v.name)) n += 5;
+    if (/en-US/i.test(v.lang)) n += 2;
+    if (/guy|davis|andrew|brian|christopher|eric|roger|steffan|daniel|aaron|evan|nathan|tom|fred|alex|male/i.test(v.name)) n += 3;
+    return n;
   },
+  list() { return speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)).sort((a, b) => speech.score(b) - speech.score(a)); },
+  saved() { try { return JSON.parse(localStorage.getItem("studyhub:voice")) || {}; } catch { return {}; } },
+  save(o) { try { localStorage.setItem("studyhub:voice", JSON.stringify({ ...speech.saved(), ...o })); } catch {} },
+  voice() { const vs = speech.list(), want = speech.saved().name; return vs.find((v) => v.name === want) || vs[0] || null; },
+  get pitch() { return Number(speech.saved().pitch) || 1.05; },
 };
+function voicePanel(onChange) {
+  const box = h("div", { class: "voice-panel" });
+  const draw = () => {
+    const vs = speech.list(), cur = speech.voice();
+    const sel = h("select", { "aria-label": "Voice", onchange: (e) => { speech.save({ name: e.target.value }); onChange?.(); } },
+      vs.length ? vs.map((v) => h("option", { value: v.name, selected: v === cur || null }, `${v.name}${speech.score(v) >= 10 ? " ✨ natural" : ""}`)) : h("option", {}, "No voices found on this device"));
+    const pitch = h("input", { type: "range", min: 0.7, max: 1.4, step: 0.05, value: speech.pitch, "aria-label": "Pitch", oninput: (e) => speech.save({ pitch: e.target.value }) });
+    box.replaceChildren(
+      h("label", {}, "Mr. Mikey's voice", sel),
+      h("label", {}, "Pitch (lower ↔ higher)", pitch),
+      h("button", { class: "btn quiet small", onclick: () => { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance("Hi there. I'm Mr. Mikey, and we're gonna learn this together, okay?"); const v = speech.voice(); if (v) u.voice = v; u.pitch = speech.pitch; u.rate = 0.92; speechSynthesis.speak(u); } }, "🔊 Test voice"),
+      h("p", { class: "muted", style: "margin:0;font-size:.82rem" }, "Voices marked ✨ natural sound the most human. For even better ones: in Microsoft Edge pick one that says “Online (Natural)”. On iPhone or Mac, go to Settings → Accessibility → Spoken Content → Voices and download an Enhanced or Premium voice, then reload."));
+  };
+  draw();
+  if (speech.ok) speechSynthesis.addEventListener?.("voiceschanged", draw);
+  return box;
+}
 
 async function openVideo({ key, courseKey, topic, material, term }) {
   document.querySelector(".vplayer")?.remove();
@@ -2880,6 +2921,8 @@ async function openVideo({ key, courseKey, topic, material, term }) {
   const muteBtn = h("button", { class: "btn quiet small", onclick: () => { muted = !muted; muteBtn.textContent = muted ? "🔇 Voice off" : "🔊 Voice on"; if (playing) show(i, true); } }, muted ? "🔇 Voice off" : "🔊 Voice on");
   if (!speech.ok) muteBtn.disabled = true;
   const speedBtn = h("button", { class: "btn quiet small", onclick: () => { rate = rate === 1 ? 1.2 : rate === 1.2 ? 0.85 : 1; speedBtn.textContent = `${rate}×`; if (playing) show(i, true); } }, "1×");
+  const vp = speech.ok ? voicePanel() : h("div");
+  vp.hidden = true;
   const close = () => { token++; if (speech.ok) speechSynthesis.cancel(); tch?.destroy(); el.remove(); removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); else if (e.key === " " && e.target === document.body) { e.preventDefault(); playing ? pause() : play(); } };
   addEventListener("keydown", onKey);
@@ -2888,11 +2931,13 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       h("header", { class: "vhead" }, h("span", { class: "eyebrow" }, `🎬 ${TEACHER} explains`), h("h2", { class: "vtitle" }, term ? term.term : topic), h("button", { class: "btn quiet small", "aria-label": "Close video", onclick: close }, "✕")),
       h("div", { class: "vstage" }, h("div", { class: "vroom" }, teacherBox), board),
       caption,
+      vp,
       h("div", { class: "vcontrols" },
         h("button", { class: "btn quiet small", "aria-label": "Previous", onclick: () => show(Math.max(0, i - 1)) }, "⏮"),
         playBtn,
         h("button", { class: "btn quiet small", "aria-label": "Next", onclick: () => show(Math.min(script.scenes.length - 1, i + 1)) }, "⏭"),
         dots, muteBtn, speedBtn,
+        speech.ok ? h("button", { class: "btn quiet small", "aria-expanded": "false", onclick: (e) => { const open = vp.hidden; vp.hidden = !open; e.currentTarget.setAttribute("aria-expanded", String(open)); } }, "🎙️ Voice") : null,
         h("button", { class: "linkish", onclick: () => { tutor.ask(`${TEACHER} just explained "${term ? term.term : topic}" in a video and I still don't totally get it. Can you explain it another way?`); close(); } }, "Still confused? Ask the tutor"))));
   document.body.append(el);
   board.append(status);
@@ -2910,7 +2955,7 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       const line = parts[k++].trim();
       const u = new SpeechSynthesisUtterance(line);
       const v = speech.voice(); if (v) u.voice = v;
-      u.rate = 0.92 * rate; u.pitch = 1.05;
+      u.rate = 0.92 * rate; u.pitch = speech.pitch;
       // Some devices never report the end of speech; don't let the video get stuck.
       let moved = false;
       const go = () => { if (moved) return; moved = true; clearTimeout(guard); next(); };
