@@ -2819,33 +2819,38 @@ function mikey2D(container) {
     <radialGradient id="mk-nose" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffb9a0"/><stop offset="1" stop-color="#e98a6f"/></radialGradient>
   </defs>
   <g class="mk-body">
-    <path d="M100 380 Q100 300 150 296 Q200 300 200 380 Z" fill="#e6a634" stroke="#3a2a1a" stroke-width="4"/>
+    <path d="M66 380 Q58 318 150 300 Q242 318 234 380 Z" fill="#e6a634" stroke="#3a2a1a" stroke-width="4"/>
+    <ellipse cx="150" cy="362" rx="62" ry="30" fill="#f0b448" stroke="#3a2a1a" stroke-width="3"/>
+    <ellipse cx="118" cy="344" rx="9" ry="6" fill="#c98a1e" opacity=".7"/><circle cx="196" cy="366" r="5" fill="#8a6a2a" opacity=".5"/>
     <path d="M132 300 L150 336 L168 300 Z" fill="#fff" stroke="#3a2a1a" stroke-width="3"/>
     <g class="mk-bow"><path d="M150 306 L128 294 L128 318 Z M150 306 L172 294 L172 318 Z" fill="#e23b4b" stroke="#3a2a1a" stroke-width="3"/><circle cx="150" cy="306" r="6" fill="#c42636" stroke="#3a2a1a" stroke-width="2.5"/>
       <circle cx="136" cy="302" r="2" fill="#fff"/><circle cx="140" cy="312" r="2" fill="#fff"/><circle cx="162" cy="301" r="2" fill="#fff"/><circle cx="164" cy="313" r="2" fill="#fff"/></g>
     <circle cx="150" cy="350" r="3.5" fill="#3a2a1a"/><circle cx="150" cy="366" r="3.5" fill="#3a2a1a"/>
-    <g class="mk-arm-l"><path d="M104 318 Q70 330 66 352" fill="none" stroke="#e6a634" stroke-width="15" stroke-linecap="round"/><path d="M104 318 Q70 330 66 352" fill="none" stroke="#3a2a1a" stroke-width="19" stroke-linecap="round" opacity=".0"/><circle cx="66" cy="356" r="10" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/></g>
-    <g class="mk-arm-r"><path d="M196 318 Q230 330 234 352" fill="none" stroke="#e6a634" stroke-width="15" stroke-linecap="round"/><circle cx="234" cy="356" r="10" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/>
-      <line x1="234" y1="356" x2="292" y2="300" stroke="#8a5a34" stroke-width="5" stroke-linecap="round"/><circle cx="292" cy="300" r="4" fill="#fff"/></g>
+    <g class="mk-arm-l"><path d="M84 324 Q50 332 46 352" fill="none" stroke="#e6a634" stroke-width="15" stroke-linecap="round"/><circle cx="46" cy="356" r="12" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/></g>
+    <g class="mk-arm-r"><path d="M216 324 Q248 332 252 352" fill="none" stroke="#e6a634" stroke-width="18" stroke-linecap="round"/><circle cx="252" cy="356" r="12" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/>
+      <line x1="252" y1="356" x2="296" y2="300" stroke="#8a5a34" stroke-width="5" stroke-linecap="round"/><circle cx="296" cy="300" r="4" fill="#fff"/></g>
   </g>
   <rect x="140" y="268" width="20" height="32" fill="#f2c49c" stroke="#3a2a1a" stroke-width="3"/>
   <g class="mk-head">
     <ellipse cx="24" cy="160" rx="20" ry="30" fill="url(#mk-skin)" stroke="#3a2a1a" stroke-width="4"/><ellipse cx="276" cy="160" rx="20" ry="30" fill="url(#mk-skin)" stroke="#3a2a1a" stroke-width="4"/>
     <ellipse cx="150" cy="150" rx="128" ry="122" fill="url(#mk-skin)" stroke="#3a2a1a" stroke-width="5"/>
+    <path d="M78 238 Q150 300 222 238 Q214 272 150 280 Q86 272 78 238 Z" fill="url(#mk-skin)" stroke="#3a2a1a" stroke-width="4"/>
+    <g fill="#6a5a50" opacity=".45"><circle cx="112" cy="252" r="1.8"/><circle cx="124" cy="262" r="1.8"/><circle cx="138" cy="258" r="1.8"/><circle cx="162" cy="260" r="1.8"/><circle cx="178" cy="255" r="1.8"/><circle cx="190" cy="248" r="1.8"/><circle cx="150" cy="266" r="1.8"/><circle cx="100" cy="240" r="1.8"/><circle cx="202" cy="238" r="1.8"/></g>
+    <path d="M140 28 Q146 8 138 -2 M156 30 Q170 12 166 0 M124 34 Q116 16 104 14" fill="none" stroke="#7a6a5a" stroke-width="4" stroke-linecap="round"/>
     <path d="M60 96 Q70 70 96 68 M40 128 Q42 96 64 88" fill="none" stroke="#9a9a9a" stroke-width="9" stroke-linecap="round"/>
     <path d="M240 96 Q230 70 204 68 M260 128 Q258 96 236 88" fill="none" stroke="#9a9a9a" stroke-width="9" stroke-linecap="round"/>
     <g class="mk-combover"><path d="M92 50 Q150 12 214 44" fill="none" stroke="#7a6a5a" stroke-width="4" stroke-linecap="round"/><path d="M100 58 Q152 26 208 52" fill="none" stroke="#7a6a5a" stroke-width="4" stroke-linecap="round"/><path d="M110 66 Q156 40 200 60" fill="none" stroke="#7a6a5a" stroke-width="4" stroke-linecap="round"/></g>
-    <g class="mk-brows"><path class="mk-brow-l" d="M72 104 Q98 86 128 100" fill="none" stroke="#5a4636" stroke-width="12" stroke-linecap="round"/><path class="mk-brow-r" d="M172 100 Q202 86 228 104" fill="none" stroke="#5a4636" stroke-width="12" stroke-linecap="round"/></g>
-    <g class="mk-eyes"><circle class="mk-pupil" cx="102" cy="138" r="7" fill="#1b1030"/><circle class="mk-pupil" cx="198" cy="138" r="7" fill="#1b1030"/></g>
+    <g class="mk-brows"><path d="M70 106 Q98 84 130 100 Q150 94 170 100 Q202 84 230 106" fill="none" stroke="#4a3626" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <g class="mk-eyes"><circle class="mk-pupil" cx="100" cy="140" r="6" fill="#1b1030"/><circle class="mk-pupil" cx="202" cy="134" r="9" fill="#1b1030"/></g>
     <g class="mk-lids"><rect class="mk-lid" x="66" y="100" width="72" height="0" fill="#f5cfab"/><rect class="mk-lid" x="162" y="100" width="72" height="0" fill="#f5cfab"/></g>
     <g class="mk-glasses" fill="rgba(190,225,255,.22)" stroke="#2a1a3a" stroke-width="7"><circle cx="102" cy="138" r="36"/><circle cx="198" cy="138" r="36"/><path d="M138 136 Q150 128 162 136" fill="none"/><path d="M66 132 L28 124 M234 132 L272 124" fill="none"/></g>
     <path d="M86 118 L96 110" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/><path d="M182 118 L192 110" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/>
     <ellipse cx="70" cy="196" rx="18" ry="11" fill="#ff9fa8" opacity=".55"/><ellipse cx="230" cy="196" rx="18" ry="11" fill="#ff9fa8" opacity=".55"/>
-    <ellipse cx="150" cy="182" rx="26" ry="22" fill="url(#mk-nose)" stroke="#3a2a1a" stroke-width="4"/><circle cx="142" cy="175" r="5" fill="#fff" opacity=".7"/>
+    <ellipse cx="152" cy="184" rx="31" ry="25" fill="url(#mk-nose)" stroke="#3a2a1a" stroke-width="4"/><circle cx="143" cy="176" r="5" fill="#fff" opacity=".7"/><circle cx="168" cy="194" r="4" fill="#c46a50"/><path d="M168 190 L172 184" stroke="#3a2a1a" stroke-width="1.5"/>
     <g class="mk-mouth" transform="translate(150 230)">
       <path class="mk-m closed" d="M-26 0 Q0 10 26 0" fill="none" stroke="#3a1a24" stroke-width="6" stroke-linecap="round"/>
-      <g class="mk-m open" style="display:none"><path d="M-28 -6 Q0 -10 28 -6 Q24 26 0 28 Q-24 26 -28 -6 Z" fill="#5a1a24" stroke="#3a1a24" stroke-width="4"/><path d="M-26 -5 Q0 -9 26 -5 L24 2 Q0 -2 -24 2 Z" fill="#fff"/><ellipse cx="0" cy="18" rx="14" ry="7" fill="#ff7f93"/></g>
-      <g class="mk-m wide" style="display:none"><path d="M-34 -6 Q0 -2 34 -6 Q26 16 0 18 Q-26 16 -34 -6 Z" fill="#5a1a24" stroke="#3a1a24" stroke-width="4"/><path d="M-32 -5 Q0 -1 32 -5 L30 1 Q0 5 -30 1 Z" fill="#fff"/></g>
+      <g class="mk-m open" style="display:none"><path d="M-28 -6 Q0 -10 28 -6 Q24 26 0 28 Q-24 26 -28 -6 Z" fill="#5a1a24" stroke="#3a1a24" stroke-width="4"/><path d="M-24 -5 L-14 -6 L-14 4 L-24 3 Z M-10 -7 L0 -7 L-1 6 L-10 5 Z M8 -7 L16 -6 L16 3 L9 2 Z" fill="#fff4c2" stroke="#3a1a24" stroke-width="1.5"/><ellipse cx="0" cy="18" rx="14" ry="7" fill="#ff7f93"/></g>
+      <g class="mk-m wide" style="display:none"><path d="M-34 -6 Q0 -2 34 -6 Q26 16 0 18 Q-26 16 -34 -6 Z" fill="#5a1a24" stroke="#3a1a24" stroke-width="4"/><path d="M-30 -4 L-18 -3 L-19 5 L-29 3 Z M-12 -3 L-2 -2 L-3 8 L-12 7 Z M10 -2 L22 -3 L21 5 L11 6 Z" fill="#fff4c2" stroke="#3a1a24" stroke-width="1.5"/></g>
       <g class="mk-m oh" style="display:none"><ellipse cx="0" cy="6" rx="13" ry="17" fill="#5a1a24" stroke="#3a1a24" stroke-width="4"/><ellipse cx="0" cy="14" rx="8" ry="5" fill="#ff7f93"/></g>
     </g>
     <path class="mk-stache" d="M104 214 Q116 196 150 206 Q184 196 196 214 Q186 226 170 218 Q160 224 150 216 Q140 224 130 218 Q114 226 104 214 Z" fill="#6a5040" stroke="#3a2a1a" stroke-width="3.5"/>
@@ -2857,10 +2862,14 @@ function mikey2D(container) {
   const shapes = { closed: q(".mk-m.closed"), open: q(".mk-m.open"), wide: q(".mk-m.wide"), oh: q(".mk-m.oh") };
   let talking = false, alive = true, shape = "closed", pointUntil = 0, look = 0, lookAt = 0, blinkAt = performance.now() + 1800, browPop = 0, lastWordAt = 0;
   const setMouth = (m) => { if (m === shape) return; shape = m; for (const [k, el] of Object.entries(shapes)) el.style.display = k === m ? "" : "none"; };
+  let lastDraw = 0;
   const frame = (now) => {
     if (!alive) return;
-    const t = now / 1000;
-    head.setAttribute("transform", `rotate(${Math.sin(t * 1.1) * 1.5 + (talking ? Math.sin(t * 3.7) * 2.5 : 0)} 150 270) translate(0 ${Math.sin(t * 1.6) * 2})`);
+    // Cheap-cartoon look on purpose: only redraw ~7 times a second, and twitch now and then.
+    if (now - lastDraw < 140) { requestAnimationFrame(frame); return; }
+    lastDraw = now;
+    const t = Math.round(now / 140) * 0.14 + (Math.random() < 0.06 ? 0.4 : 0);
+    head.setAttribute("transform", `rotate(${Math.round(Math.sin(t * 1.1) * 2 + (talking ? Math.sin(t * 3.7) * 4 : 0))} 150 270) translate(${Math.random() < 0.08 ? 3 : 0} ${Math.round(Math.sin(t * 1.6) * 3)})`);
     body.setAttribute("transform", `translate(0 ${Math.sin(t * 1.6) * 1.2})`);
     // Eyes wander, and glance at the board while pointing.
     if (now > lookAt) { look = now < pointUntil ? 6 : (Math.random() - 0.5) * 8; lookAt = now + 900 + Math.random() * 1600; }
@@ -2887,7 +2896,7 @@ function mikey2D(container) {
       lastWordAt = performance.now();
       const s = String(w).toLowerCase();
       setMouth(/^[mbp]/.test(s) ? "closed" : /[ou]/.test(s) ? "oh" : /[ei]/.test(s) ? "wide" : "open");
-      setTimeout(() => { if (talking && performance.now() - lastWordAt > 140) setMouth("open"); }, 150);
+
       if (/mkay|kay/.test(s)) browPop = 1;
     },
     destroy: () => { alive = false; wrap.remove(); },
@@ -2897,12 +2906,12 @@ function mikey2D(container) {
 /* ---------- video lessons: Mr. Mikey explains with a chalkboard ---------- */
 const TEACHER = "Mr. Mikey";
 let videoCache = null;
-async function getVideo(key) { videoCache ||= (await store.get("videos-mikey2"))?.items || {}; return videoCache[key]; }
+async function getVideo(key) { videoCache ||= (await store.get("videos-mikey3"))?.items || {}; return videoCache[key]; }
 function putVideo(key, script) {
   videoCache[key] = { ...script, at: Date.now() };
   const keys = Object.keys(videoCache).sort((a, b) => videoCache[b].at - videoCache[a].at);
   for (const k of keys.slice(30)) delete videoCache[k];
-  store.set("videos-mikey2", { items: videoCache });
+  store.set("videos-mikey3", { items: videoCache });
 }
 
 async function makeVideoScript({ courseKey, topic, material, term }) {
@@ -2910,7 +2919,7 @@ async function makeVideoScript({ courseKey, topic, material, term }) {
   const prefer = courseKey === "accounting" ? "Lean on equation, tAccount, and journal visuals with real dollar amounts."
     : courseKey === "sql" ? "Lean on sql visuals (a short query plus its small result) and table visuals, using the practice database tables: customers, products, orders, order_items."
     : "Lean on steps, compare, term, and table visuals.";
-  const data = await sample.json(`You are ${TEACHER}, ${course.tutor}, recording a short video lesson for a college student. ${TEACHER} is a friendly, very earnest school counselor who got asked to teach: slow and sincere, over-explains simple things with plain everyday examples, a little awkward and dry-funny, and ends EVERY sentence with "mkay" (like "So that's a debit, mkay?"). Write the way people really talk: contractions, short sentences, commas where he'd take a breath, little fillers like "so," "now," and "alright." Never mention any TV show or real person. Keep every fact exactly right.
+  const data = await sample.json(`You are ${TEACHER}, ${course.tutor}, recording a short video lesson for a college student. ${TEACHER} is a friendly, very earnest school counselor who got asked to teach: slow and sincere, over-explains simple things with plain everyday examples, a little awkward and dry-funny, and says "mkay" once in a while, about once per scene at most, never after every sentence. Write the way people really talk: contractions, short sentences, commas where he'd take a breath, little fillers like "so," "now," and "alright." Never mention any TV show or real person. Keep every fact exactly right.
 
 ${term ? `Explain just this one term so it really clicks: "${term.term}" (${term.definition}). Use 3-4 scenes: what it is, a real-life example, how it shows up in this class, and a quick check question.` : `Teach "${topic}" in 6-8 scenes: why it matters, the key ideas one at a time, a worked example, a common mistake, and a quick check question at the end.`}
 Each scene has "say" (what he says out loud: 20-50 words, conversational, no markdown or symbols he'd have to read) and ONE "visual" for the chalkboard that shows what he's saying. ${prefer}
@@ -2935,16 +2944,15 @@ ${String(material || "").slice(0, 9000)}`, { cache: false, modelTier: "default" 
   return { title: String(data.title || topic || term?.term || "Lesson"), scenes };
 }
 
-// Every sentence ends in "mkay".
+// "Mkay" only now and then: at most once per scene, on the last sentence.
 function mkayify(text) {
-  return (text.match(/[^.!?]+[.!?]*/g) || [text]).map((sen) => {
-    let x = sen.trim();
-    if (!x) return "";
-    x = x.replace(/,?\s*\b(okay|ok|m+'?kay)\s*([.!?]*)$/i, "");
-    const end = /[!?]$/.test(x) ? x.slice(-1) : "?";
-    x = x.replace(/[.!?]+$/, "");
-    return `${x}, mkay${end}`;
-  }).filter(Boolean).join(" ");
+  const sens = (text.match(/[^.!?]+[.!?]*/g) || [text]).map((x) => x.trim()).filter(Boolean);
+  const had = sens.some((x) => /\bm+'?kay\b/i.test(x));
+  return sens.map((x, i) => {
+    const last = i === sens.length - 1;
+    if (!last || !had) return x.replace(/,?\s*\bm+'?kay\b\s*([.!?]*)$/i, (_, p) => p || ".");
+    return x;
+  }).join(" ");
 }
 // Chalkboard visuals.
 const vtxt = (v) => String(v ?? "");
