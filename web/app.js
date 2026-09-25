@@ -54,10 +54,12 @@ const ready = (async () => {
 /* ---------- celebrations: a dancing unicorn or monkey for every right answer ---------- */
 const CHEERS = ["Nailed it!", "Yesss!", "You got it!", "So smart!", "Correct!", "Boom!", "Look at you go!", "Perfect!"];
 const GUMDROP_COLORS = ["#ff6fb5", "#ffd84d", "#5fe0d0", "#9f8cff", "#7fe3a0", "#ff9a5c", "#ff5c7a"];
-let celebrating = false;
+let celebrating = false, grumpy = false, cheerNext = false;
 function celebrationsOn() { try { return localStorage.getItem("studyhub:celebrate") !== "off"; } catch { return true; } }
 function celebrate() {
-  if (celebrating || !celebrationsOn()) return;
+  if (!celebrationsOn()) return;
+  // Got it right while the monster is still stomping? Cut it short and cheer.
+  if (celebrating) { if (grumpy) { cheerNext = true; window.FX?.stop(); document.querySelector(".celebrate")?.remove(); } return; }
   celebrating = true;
   const animal = nextAnimal();
   const monkey = animal === "monkey";
@@ -66,17 +68,16 @@ function celebrate() {
   fx.then((ok) => { if (ok) celebrating = false; else flatCelebrate(monkey, cheer, window.FX?.emoji[animal]); });
 }
 // A different animal every time: go through the whole zoo in a shuffled order before any repeats.
-function nextAnimal() {
-  const all = window.FX?.animals || ["unicorn", "monkey"];
+function nextAnimal(all = window.FX?.animals || ["unicorn", "monkey"], key = "zoo") {
   let z;
-  try { z = JSON.parse(localStorage.getItem("studyhub:zoo")) || {}; } catch { z = {}; }
+  try { z = JSON.parse(localStorage.getItem("studyhub:" + key)) || {}; } catch { z = {}; }
   if (!Array.isArray(z.bag) || !z.bag.length || z.bag.some((a) => !all.includes(a))) {
     z.bag = [...all].sort(() => Math.random() - 0.5);
     if (z.bag[0] === z.last && z.bag.length > 1) z.bag.push(z.bag.shift());
   }
   const a = z.bag.shift();
   z.last = a;
-  try { localStorage.setItem("studyhub:zoo", JSON.stringify(z)); } catch {}
+  try { localStorage.setItem("studyhub:" + key, JSON.stringify(z)); } catch {}
   return a;
 }
 // The 2D version, for when 3D can't run.
@@ -102,17 +103,28 @@ function flatCelebrate(monkey, cheer, emoji) {
   setTimeout(() => { el.remove(); celebrating = false; }, reduced ? 1400 : 2600);
 }
 // Wrong answer: a very grumpy (cartoon) monster.
-const GROWLS = ["GRRRRR!! Try again!", "RAAAWR!! Not quite!", "GRAAAH! Check that one!", "HMPH!! One more try!", "ROOOAR!! So close!"];
+const GROWLS = {
+  monster: ["GRRRRR!! Try again!", "RAAAWR!! Not quite!", "GRAAAH! Check that one!", "ROOOAR!! So close!"],
+  brat: ["WHAAAT?! That's NOT right!", "UGH! I'm SO mad right now!", "NO NO NO! Wrong wrong WRONG!", "That is SO not fair! Try again!"],
+  ogre: ["GRRAAH! Ogre not happy!", "BLEH! Wrong! Try again!", "HRRMPH! Swamp says NO!"],
+  ape: ["OOH OOH AAH AAAH!!", "RAAAH! WRONG ANSWER!", "OOK! OOK! NOPE!"],
+  elf: ["NAUGHTY LIST! Try again!", "HMPH! Santa would NOT approve!", "Jingle NOPE! Try again!"],
+};
 function grumble() {
   if (celebrating || !celebrationsOn()) return;
-  celebrating = true;
-  const text = ["😡 ", "💢 ", "😤 ", "🤬 "][Math.floor(Math.random() * 4)] + GROWLS[Math.floor(Math.random() * GROWLS.length)];
-  const fx = window.FX ? FX.play("monster", text) : Promise.resolve(false);
+  celebrating = true; grumpy = true;
+  const who = nextAnimal(window.FX?.grumps || ["monster"], "grumps");
+  const lines = GROWLS[who] || GROWLS.monster;
+  const text = ["😡 ", "💢 ", "😤 ", "🤬 "][Math.floor(Math.random() * 4)] + lines[Math.floor(Math.random() * lines.length)];
+  const fx = window.FX ? FX.play(who, text) : Promise.resolve(false);
+  const finish = () => { celebrating = false; grumpy = false; if (cheerNext) { cheerNext = false; celebrate(); } };
   fx.then((ok) => {
-    if (ok) { celebrating = false; return; }
-    const el = h("div", { class: "celebrate", "aria-hidden": "true" }, h("div", { class: "stage-pop" }, h("div", { class: "dancer monster" }, "👹"), h("div", { class: "bubble angry" }, text)));
+    if (ok) { finish(); return; }
+    const el = h("div", { class: "celebrate", "aria-hidden": "true" }, h("div", { class: "stage-pop" }, h("div", { class: "dancer monster" }, ({ brat: "😫", ape: "🦍", elf: "🧝" })[who] || "👹"), h("div", { class: "bubble angry" }, text)));
     document.body.append(el);
-    setTimeout(() => { el.remove(); celebrating = false; }, 2000);
+    const done = () => { if (!el.isConnected && !celebrating) return; el.remove(); finish(); };
+    const timer = setTimeout(done, 2000);
+    const watch = setInterval(() => { if (cheerNext) { clearTimeout(timer); clearInterval(watch); done(); } else if (!el.isConnected) clearInterval(watch); }, 100);
   });
 }
 if (celebrationsOn()) setTimeout(() => window.FX?.preload(), 4000); // warm up 3D so the first one plays instantly
@@ -645,7 +657,11 @@ const RENDER = {
   text: (b) => h("section", { class: "block prose", html: b.html }),
   keyPoints: (b) => h("section", { class: "block" }, h("h2", {}, "Key points"), h("ul", { class: "points" }, b.items.map((p) => h("li", {}, p)))),
   definitions: (b) => h("section", { class: "block" }, h("h2", {}, "Definitions"),
-    h("ul", { class: "defs" }, b.items.map(([t, d]) => h("li", {}, h("b", {}, t), ": ", d)))),
+    h("ul", { class: "defs" }, b.items.map(([t, d]) => h("li", {}, h("b", {}, t), ": ", d, " ",
+      h("button", { class: "term-video", title: `${TEACHER} explains “${t}”`, "aria-label": `Watch ${TEACHER} explain ${t}`, onclick: () => {
+        const lesson = currentLesson();
+        openVideo({ key: `term:${state.course}:${t.toLowerCase()}`, courseKey: state.course, topic: t, term: { term: t, definition: d }, material: lesson ? lessonMaterial(lesson) : d });
+      } }, "🎬 explain"))))),
 
   classify(b) {
     let right = 0;
@@ -1238,8 +1254,11 @@ function resultTable({ columns, rows }, mark) {
 function renderLesson(lesson) {
   track = newTracker(lesson);
   const done = track.saved.done;
+  const course = state.course;
   const article = h("article", { class: "lesson" },
     h("div", { class: "row" }, h("h1", { style: "flex:1" }, lesson.title), done ? h("span", { class: "chip done" }, "✓ Completed") : null),
+    h("button", { class: "watch-btn", onclick: () => openVideo({ key: `${course}:${state.lessonId || lesson.title}`, courseKey: course, topic: lesson.title, material: lessonMaterial(lesson) }) },
+      h("span", { class: "watch-face", "aria-hidden": "true" }, "👨‍🏫"), h("span", {}, h("b", {}, `🎬 Watch ${TEACHER} explain this lesson`), h("small", {}, "A short video with chalkboard visuals, read out loud"))),
     lesson.blocks.map((b) => RENDER[b.type]?.(b)));
   track.base = track.count; // items after this belong to the extra practice set
   practice.area = h("div", { class: "lesson", id: "extra-practice" });
@@ -2771,6 +2790,175 @@ function goalsView() {
   document.body.append(h("button", { class: "btn fab", onclick: () => { document.body.classList.add("tutor-open"); advisor.input.focus(); } }, "Career advisor"));
   return h("div", { class: "goalsview" }, main, advisor.mount());
 }
+
+/* ---------- video lessons: Mr. Maxwell explains with a chalkboard ---------- */
+const TEACHER = "Mr. Maxwell";
+let videoCache = null;
+async function getVideo(key) { videoCache ||= (await store.get("videos"))?.items || {}; return videoCache[key]; }
+function putVideo(key, script) {
+  videoCache[key] = { ...script, at: Date.now() };
+  const keys = Object.keys(videoCache).sort((a, b) => videoCache[b].at - videoCache[a].at);
+  for (const k of keys.slice(30)) delete videoCache[k];
+  store.set("videos", { items: videoCache });
+}
+
+async function makeVideoScript({ courseKey, topic, material, term }) {
+  const course = courseOf(courseKey);
+  const prefer = courseKey === "accounting" ? "Lean on equation, tAccount, and journal visuals with real dollar amounts."
+    : courseKey === "sql" ? "Lean on sql visuals (a short query plus its small result) and table visuals, using the practice database tables: customers, products, orders, order_items."
+    : "Lean on steps, compare, term, and table visuals.";
+  const data = await sample.json(`You are ${TEACHER}, ${course.tutor}, recording a short video lesson for a college student. ${TEACHER} is a friendly, very earnest school counselor who got asked to teach: slow and sincere, over-explains simple things with plain everyday examples, a little awkward and dry-funny, and ends a lot of sentences with ", okay?" (not every one). Never mention any TV show or real person. Keep every fact exactly right.
+
+${term ? `Explain just this one term so it really clicks: "${term.term}" (${term.definition}). Use 3-4 scenes: what it is, a real-life example, how it shows up in this class, and a quick check question.` : `Teach "${topic}" in 6-8 scenes: why it matters, the key ideas one at a time, a worked example, a common mistake, and a quick check question at the end.`}
+Each scene has "say" (what he says out loud: 20-50 words, conversational, no markdown or symbols he'd have to read) and ONE "visual" for the chalkboard that shows what he's saying. ${prefer}
+
+Visual types (use the exact fields):
+{"type":"term","term":"","definition":"","example":""}
+{"type":"equation","left":[{"label":"","value":""}],"right":[{"label":"","value":""}],"note":""}
+{"type":"tAccount","account":"","debits":[{"label":"","amount":0}],"credits":[{"label":"","amount":0}]}
+{"type":"journal","entries":[{"account":"","side":"debit","amount":0}]}
+{"type":"table","columns":[""],"rows":[[""]],"highlight":0}
+{"type":"sql","query":"","columns":[""],"rows":[[""]]}
+{"type":"steps","items":[""]}
+{"type":"compare","left":{"title":"","items":[""]},"right":{"title":"","items":[""]}}
+{"type":"bullets","items":[""]}
+
+Reply with JSON only: {"title": "", "scenes": [{"say": "", "visual": {}}]}
+
+--- WHAT THE STUDENT IS STUDYING ---
+${String(material || "").slice(0, 9000)}`, { cache: false, modelTier: "default" });
+  const scenes = (Array.isArray(data?.scenes) ? data.scenes : []).filter((x) => x?.say).map((x) => ({ say: String(x.say), visual: x.visual && typeof x.visual === "object" ? x.visual : { type: "bullets", items: [] } }));
+  if (!scenes.length) throw { code: "invalid_json" };
+  return { title: String(data.title || topic || term?.term || "Lesson"), scenes };
+}
+
+// Chalkboard visuals.
+const vtxt = (v) => String(v ?? "");
+const vmoney = (n) => (typeof n === "number" ? money(n) : vtxt(n));
+const BOARD = {
+  term: (v) => h("div", { class: "b-term" }, h("div", { class: "b-big" }, vtxt(v.term)), h("p", {}, vtxt(v.definition)), v.example ? h("p", { class: "b-ex" }, "e.g. ", vtxt(v.example)) : null),
+  equation: (v) => h("div", { class: "b-eq" },
+    ...(v.left || []).flatMap((x, i) => [i ? h("span", { class: "b-op" }, "+") : null, h("div", { class: "b-box" }, h("b", {}, vtxt(x.label)), x.value ? h("span", {}, vtxt(x.value)) : null)]),
+    h("span", { class: "b-op" }, "="),
+    ...(v.right || []).flatMap((x, i) => [i ? h("span", { class: "b-op" }, "+") : null, h("div", { class: "b-box" }, h("b", {}, vtxt(x.label)), x.value ? h("span", {}, vtxt(x.value)) : null)]),
+    v.note ? h("p", { class: "b-note" }, vtxt(v.note)) : null),
+  tAccount: (v) => {
+    const sum = (a) => (a || []).reduce((t, x) => t + (Number(x.amount) || 0), 0);
+    const side = (items) => h("div", { class: "b-tside" }, (items || []).map((x) => h("div", { class: "b-trow" }, h("span", {}, vtxt(x.label)), h("b", {}, vmoney(Number(x.amount))))));
+    return h("div", { class: "b-t" }, h("div", { class: "b-big" }, vtxt(v.account)),
+      h("div", { class: "b-tgrid" }, h("div", { class: "b-thead" }, "Debit"), h("div", { class: "b-thead" }, "Credit"), side(v.debits), side(v.credits)),
+      h("p", { class: "b-note" }, `Balance: ${money(Math.abs(sum(v.debits) - sum(v.credits)))} ${sum(v.debits) >= sum(v.credits) ? "debit" : "credit"}`));
+  },
+  journal: (v) => h("table", { class: "b-table" }, h("thead", {}, h("tr", {}, h("th", {}, "Account"), h("th", {}, "Debit"), h("th", {}, "Credit"))),
+    h("tbody", {}, (v.entries || []).map((e) => h("tr", {}, h("td", { class: e.side === "credit" ? "b-indent" : "" }, vtxt(e.account)), h("td", {}, e.side === "debit" ? vmoney(Number(e.amount)) : ""), h("td", {}, e.side === "credit" ? vmoney(Number(e.amount)) : ""))))),
+  table: (v) => h("table", { class: "b-table" }, h("thead", {}, h("tr", {}, (v.columns || []).map((c) => h("th", {}, vtxt(c))))),
+    h("tbody", {}, (v.rows || []).slice(0, 8).map((r, i) => h("tr", { class: i === v.highlight ? "b-hl" : "" }, (Array.isArray(r) ? r : [r]).map((c) => h("td", {}, vtxt(c))))))),
+  sql: (v) => h("div", { class: "b-sql" }, h("pre", {}, vtxt(v.query)), v.columns?.length ? BOARD.table(v) : null),
+  steps: (v) => h("ol", { class: "b-steps" }, (v.items || []).map((x) => h("li", {}, vtxt(x)))),
+  compare: (v) => h("div", { class: "b-compare" }, [v.left, v.right].map((c) => h("div", {}, h("div", { class: "b-big small" }, vtxt(c?.title)), h("ul", {}, (c?.items || []).map((x) => h("li", {}, vtxt(x))))))),
+  bullets: (v) => h("ul", { class: "b-bullets" }, (v.items || []).map((x) => h("li", {}, vtxt(x)))),
+};
+
+// Speech: the browser's built-in voice (free, no downloads). Falls back to timed captions.
+const speech = {
+  get ok() { return "speechSynthesis" in window; },
+  voice() {
+    const vs = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
+    return vs.find((v) => /daniel|fred|alex|david|guy|mark|google us english|male/i.test(v.name)) || vs.find((v) => /en-US/i.test(v.lang)) || vs[0] || null;
+  },
+};
+
+async function openVideo({ key, courseKey, topic, material, term }) {
+  document.querySelector(".vplayer")?.remove();
+  const board = h("div", { class: "board", "aria-live": "polite" });
+  const caption = h("p", { class: "vcaption" });
+  const teacherBox = h("div", { class: "vteacher" });
+  const dots = h("div", { class: "vdots" });
+  const status = h("div", { class: "vstatus" }, h("span", { class: "spinner" }), h("p", {}, `${TEACHER} is getting his chalk ready…`));
+  let script = null, i = 0, playing = false, token = 0, muted = !speech.ok, rate = 1, tch = null;
+  const playBtn = h("button", { class: "btn", onclick: () => (playing ? pause() : play()) }, "▶ Play");
+  const muteBtn = h("button", { class: "btn quiet small", onclick: () => { muted = !muted; muteBtn.textContent = muted ? "🔇 Voice off" : "🔊 Voice on"; if (playing) show(i, true); } }, muted ? "🔇 Voice off" : "🔊 Voice on");
+  if (!speech.ok) muteBtn.disabled = true;
+  const speedBtn = h("button", { class: "btn quiet small", onclick: () => { rate = rate === 1 ? 1.2 : rate === 1.2 ? 0.85 : 1; speedBtn.textContent = `${rate}×`; if (playing) show(i, true); } }, "1×");
+  const close = () => { token++; if (speech.ok) speechSynthesis.cancel(); tch?.destroy(); el.remove(); removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); else if (e.key === " " && e.target === document.body) { e.preventDefault(); playing ? pause() : play(); } };
+  addEventListener("keydown", onKey);
+  const el = h("div", { class: "vplayer", role: "dialog", "aria-modal": "true", "aria-label": `Video lesson with ${TEACHER}` },
+    h("div", { class: "vcard" },
+      h("header", { class: "vhead" }, h("span", { class: "eyebrow" }, `🎬 ${TEACHER} explains`), h("h2", { class: "vtitle" }, term ? term.term : topic), h("button", { class: "btn quiet small", "aria-label": "Close video", onclick: close }, "✕")),
+      h("div", { class: "vstage" }, h("div", { class: "vroom" }, teacherBox), board),
+      caption,
+      h("div", { class: "vcontrols" },
+        h("button", { class: "btn quiet small", "aria-label": "Previous", onclick: () => show(Math.max(0, i - 1)) }, "⏮"),
+        playBtn,
+        h("button", { class: "btn quiet small", "aria-label": "Next", onclick: () => show(Math.min(script.scenes.length - 1, i + 1)) }, "⏭"),
+        dots, muteBtn, speedBtn,
+        h("button", { class: "linkish", onclick: () => { tutor.ask(`${TEACHER} just explained "${term ? term.term : topic}" in a video and I still don't totally get it. Can you explain it another way?`); close(); } }, "Still confused? Ask the tutor"))));
+  document.body.append(el);
+  board.append(status);
+  FX.teacher?.(teacherBox).then((t) => { tch = t; if (!t) teacherBox.append(h("div", { class: "vteacher-flat" }, "👨‍🏫")); });
+
+  const drawDots = () => dots.replaceChildren(...script.scenes.map((_, k) => h("button", { class: `vdot${k === i ? " on" : ""}${k < i ? " seen" : ""}`, "aria-label": `Scene ${k + 1}`, onclick: () => show(k) })));
+  const sayIt = (text, my) => new Promise((done) => {
+    if (muted) { setTimeout(done, Math.max(2500, (text.split(/\s+/).length / (2.6 * rate)) * 1000)); return; }
+    speechSynthesis.cancel();
+    const parts = text.match(/[^.!?]+[.!?]*/g) || [text];
+    let k = 0;
+    const next = () => {
+      if (my !== token) return;
+      if (k >= parts.length) return done();
+      const line = parts[k++].trim();
+      const u = new SpeechSynthesisUtterance(line);
+      const v = speech.voice(); if (v) u.voice = v;
+      u.rate = 0.92 * rate; u.pitch = 1.05;
+      // Some devices never report the end of speech; don't let the video get stuck.
+      let moved = false;
+      const go = () => { if (moved) return; moved = true; clearTimeout(guard); next(); };
+      const guard = setTimeout(go, (line.split(/\s+/).length / (1.6 * rate) + 2.5) * 1000);
+      // No voice on this device? Leave the caption up for reading time instead.
+      u.onend = go; u.onerror = () => { clearTimeout(guard); setTimeout(go, Math.max(1500, (line.split(/\s+/).length / (2.6 * rate)) * 1000)); };
+      speechSynthesis.speak(u);
+    };
+    next();
+  });
+  const show = async (k, keepPlaying = playing) => {
+    const my = ++token;
+    if (speech.ok) speechSynthesis.cancel();
+    i = k; drawDots();
+    const sc = script.scenes[i];
+    const v = BOARD[sc.visual.type] ? BOARD[sc.visual.type](sc.visual) : BOARD.bullets({ items: [] });
+    board.replaceChildren(h("div", { class: "board-in" }, v));
+    caption.textContent = sc.say;
+    tch?.point();
+    if (!keepPlaying) { tch?.talk(false); return; }
+    playing = true; playBtn.textContent = "⏸ Pause";
+    tch?.talk(true);
+    await sayIt(sc.say, my);
+    if (my !== token) return;
+    tch?.talk(false);
+    if (i < script.scenes.length - 1) setTimeout(() => { if (my === token && playing) show(i + 1); }, 700);
+    else { playing = false; playBtn.textContent = "↺ Watch again"; }
+  };
+  const play = () => { if (!script) return; if (playBtn.textContent.startsWith("↺")) i = 0; show(i, true); };
+  const pause = () => { token++; playing = false; if (speech.ok) speechSynthesis.cancel(); tch?.talk(false); playBtn.textContent = "▶ Play"; };
+
+  try {
+    script = await getVideo(key);
+    if (!script) {
+      if (!sample) throw { code: "not_granted" };
+      script = await makeVideoScript({ courseKey, topic, material, term });
+      putVideo(key, script);
+    }
+    if (!el.isConnected) return;
+    el.querySelector(".vtitle").textContent = script.title;
+    show(0, false);
+    caption.textContent = `Press Play and ${TEACHER} will walk you through it${speech.ok ? " out loud" : ""}. ${script.scenes.length} parts.`;
+  } catch (e) {
+    board.replaceChildren(h("p", { class: "bad" }, e?.code === "not_granted" && !sample ? "Video lessons work when Study Hub is open in Claude." : sampleErrorText(e)));
+  }
+}
+const lessonMaterial = (lesson) => lesson.blocks.map((b) => b.type === "objectives" ? `Objectives: ${b.text}` : b.type === "text" ? String(b.html || "").replace(/<[^>]+>/g, " ")
+  : JSON.stringify({ ...b, html: undefined })).join("\n").replace(/\s+/g, " ");
 
 /* ---------- views ---------- */
 const app = $("#app");

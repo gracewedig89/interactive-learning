@@ -386,10 +386,251 @@ window.FX = (() => {
     return { m: gumdrop(T, pick(colors)), v: 3 };
   }
 
+  /* ---------- more grumps for wrong answers (original characters) ---------- */
+  const angryBrows = (T, K, g, x, y, z, w = 0.42, color = 0x2a160c) => [-1, 1].map((s) => { const b = new T.Mesh(new T.BoxGeometry(w, 0.1, 0.1), K.mat(color)); b.position.set(s * x, y, z); b.rotation.z = s * 0.6; g.add(b); return b; });
+  // A bratty kid throwing a full-body tantrum.
+  function brat(T, K) {
+    const coat = K.mat(0x7b4fe0), skin = K.mat(0xffd2b0), hat = K.mat(0xff8a1a), dark = K.mat(0x2a160c);
+    const g = new T.Group();
+    const body = K.ball(1.25, coat, 0, 1.25, 0, 1.15, 0.95, 0.95); g.add(body);
+    [0.95, 1.35, 1.75].forEach((y) => g.add(K.ball(0.06, K.mat(0x2a1a5a), 0, y, 1.13)));
+    const head = K.group(0, 2.75, 0.1, K.ball(1.0, skin, 0, 0, 0, 1.12, 0.95, 1));
+    head.add(K.ball(1.0, hat, 0, 0.35, -0.05, 1.08, 0.72, 1.02), K.cyl(1.02, 1.1, 0.22, K.mat(0xffd84d), 0, 0.12, 0), K.ball(0.22, K.mat(0xffffff), 0, 1.05, 0));
+    for (const s of [-1, 1]) head.add(K.ball(0.16, K.mat(0xffffff), s * 0.28, -0.05, 0.9), K.ball(0.07, dark, s * 0.26, -0.07, 1.04));
+    const brows = angryBrows(T, K, head, 0.28, 0.14, 0.98, 0.34);
+    const mouth = K.group(0, -0.45, 0.85, K.ball(0.3, K.mat(0x5a0010), 0, 0, 0, 1.4, 0.55, 0.4));
+    mouth.add(K.at(new T.Mesh(new T.BoxGeometry(0.4, 0.07, 0.05), K.mat(0xffffff)), 0, 0.12, 0.1));
+    head.add(mouth);
+    g.add(head);
+    const arms = [-1, 1].map((s) => { const a = K.group(s * 1.25, 1.7, 0, K.cyl(0.22, 0.2, 0.9, coat, 0, -0.45, 0), K.ball(0.24, K.mat(0xffd84d), 0, -0.95, 0)); g.add(a); return a; });
+    const feet = [-1, 1].map((s) => { const f = K.ball(0.34, dark, s * 0.5, 0.15, 0.3, 1.2, 0.5, 1.4); g.add(f); return f; });
+    return { g, head, headTop: new T.Vector3(0.4, 4.1, 0), update(t, dt, fx) {
+      const on = t > 0.35 && t < 2.3, beat = Math.sin(t * 22);
+      g.position.y = -3 * (1 - fx.ease.outBack(fx.seg(t, 0, 0.35))) - 3.5 * fx.ease.inOut(fx.outP) + (on ? Math.abs(Math.sin(t * 11)) * 0.35 : 0);
+      feet[0].position.y = 0.15 + (on ? Math.max(0, beat) * 0.45 : 0); feet[1].position.y = 0.15 + (on ? Math.max(0, -beat) * 0.45 : 0);
+      arms[0].rotation.z = on ? -2.2 + Math.sin(t * 25) * 0.9 : -0.2; arms[1].rotation.z = on ? 2.2 + Math.sin(t * 25 + 2) * 0.9 : 0.2;
+      head.rotation.z = on ? Math.sin(t * 16) * 0.25 : 0;
+      mouth.scale.y = on ? 1.3 + Math.abs(Math.sin(t * 14)) * 0.9 : 1;
+      skin.emissive.setRGB(on ? 0.5 + 0.3 * Math.sin(t * 10) : 0, 0, 0);
+      brows.forEach((b) => (b.position.y = 0.14 - (on ? 0.05 : 0)));
+      fx.shake(on ? 0.12 : 0);
+      if (on && Math.random() < 0.25) fx.puff(0xffffff, (Math.random() < 0.5 ? -1 : 1) * 1.1, 3.9, 0.2, (Math.random() - 0.5) * 2, 2.2);
+    } };
+  }
+  // A big round swamp ogre with a stinky roar.
+  function ogre(T, K) {
+    const green = K.mat(0x86b83c, { roughness: 0.7 }), vest = K.mat(0x7a5230, { roughness: 0.9 }), shirt = K.mat(0xe8dcc0), dark = K.mat(0x1e140a);
+    const g = new T.Group();
+    const belly = K.ball(1.6, shirt, 0, 1.6, 0, 1.2, 1.05, 1); g.add(belly);
+    for (const s of [-1, 1]) { const v = K.ball(1.62, vest, s * 0.55, 1.65, -0.05, 0.75, 1.02, 0.98); g.add(v); }
+    g.add(K.cyl(1.55, 1.55, 0.25, K.mat(0x3a2410), 0, 0.85, 0));
+    const head = K.group(0, 3.35, 0.2, K.ball(0.95, green, 0, 0, 0, 1.15, 0.95, 1));
+    for (const s of [-1, 1]) head.add(K.ball(0.25, green, s * 1.1, 0.15, 0, 0.6, 1, 0.8));
+    for (const s of [-1, 1]) head.add(K.ball(0.13, K.mat(0xffffff), s * 0.3, 0.18, 0.85), K.ball(0.06, dark, s * 0.3, 0.17, 0.97));
+    const unibrow = new T.Mesh(new T.BoxGeometry(1.0, 0.16, 0.16), dark); unibrow.position.set(0, 0.38, 0.86); head.add(unibrow);
+    head.add(K.ball(0.2, K.mat(0x6f9f2c), 0, -0.02, 1.0, 1.2, 0.8, 0.8));
+    const jaw = K.group(0, -0.45, 0.6, K.ball(0.55, green, 0, 0, 0, 1.3, 0.55, 0.8), K.ball(0.4, K.mat(0x3a0a10), 0, 0.1, 0.25, 1.3, 0.35, 0.3));
+    for (const s of [-1, 1]) { const tusk = K.cone(0.08, 0.3, K.mat(0xfff7e0), s * 0.3, 0.3, 0.35); jaw.add(tusk); }
+    head.add(jaw); g.add(head);
+    const arms = [-1, 1].map((s) => { const a = K.group(s * 1.85, 2.4, 0, K.cyl(0.35, 0.3, 1.3, green, 0, -0.65, 0), K.ball(0.45, green, 0, -1.35, 0)); g.add(a); return a; });
+    const feet = [-1, 1].map((s) => { const f = K.ball(0.5, vest, s * 0.8, 0.2, 0.4, 1.3, 0.5, 1.5); g.add(f); return f; });
+    return { g, headTop: new T.Vector3(0.6, 4.6, 0), update(t, dt, fx) {
+      const on = t > 0.4 && t < 2.2, stomp = Math.sin(t * Math.PI * 4);
+      g.position.y = -4 * (1 - fx.ease.outBack(fx.seg(t, 0, 0.4))) - 4.5 * fx.ease.inOut(fx.outP);
+      g.rotation.z = stomp * 0.05;
+      feet[0].position.y = 0.2 + Math.max(0, stomp) * 0.35; feet[1].position.y = 0.2 + Math.max(0, -stomp) * 0.35;
+      belly.scale.set(1.2 + Math.sin(t * 18) * 0.05, 1.05 - Math.sin(t * 18) * 0.04, 1);
+      jaw.position.y = -0.45 - (on ? 0.2 + Math.abs(Math.sin(t * 9)) * 0.15 : 0);
+      arms.forEach((a, i) => (a.rotation.z = (i ? 1 : -1) * (on ? 2.3 + Math.sin(t * 12 + i * 3) * 0.4 : 0.25)));
+      fx.shake(on && Math.abs(stomp) > 0.95 ? 0.3 : 0.05);
+      if (on && Math.random() < 0.45) fx.puff([0x9acd32, 0x6b8e23, 0xb5d86a][Math.floor(Math.random() * 3)], (Math.random() - 0.5) * 0.6, 2.9, 1.3, (Math.random() - 0.5) * 3, 0.8 + Math.random(), 0.5);
+    } };
+  }
+  // A huge ape that pounds its chest, then punches the screen.
+  function ape(T, K) {
+    const fur = K.mat(0x3a3a44, { roughness: 0.85 }), face = K.mat(0x6b5a55, { roughness: 0.6 }), dark = K.mat(0x121216);
+    const g = new T.Group();
+    g.add(K.ball(1.5, fur, 0, 1.8, 0, 1.25, 1.05, 0.95), K.ball(0.95, face, 0, 2.0, 0.8, 1.2, 0.9, 0.5));
+    const head = K.group(0, 3.4, 0.15, K.ball(0.85, fur, 0, 0, 0), K.ball(0.62, face, 0, -0.1, 0.45, 1.1, 0.95, 0.7));
+    head.add(K.ball(0.4, fur, 0, 0.55, -0.1, 1.2, 0.6, 1));
+    for (const s of [-1, 1]) head.add(K.ball(0.1, K.mat(0xff2020, { emissive: 0xff0000, emissiveIntensity: 0.8 }), s * 0.25, 0.08, 0.95));
+    const brow = new T.Mesh(new T.BoxGeometry(0.9, 0.2, 0.25), fur); brow.position.set(0, 0.28, 0.85); head.add(brow);
+    const mouth = K.group(0, -0.4, 0.95, K.ball(0.28, K.mat(0x3a0010), 0, 0, 0, 1.5, 0.6, 0.4));
+    [-0.22, 0.22].forEach((x) => { const f = K.cone(0.05, 0.18, K.mat(0xffffff), x, 0.08, 0.08); f.rotation.z = Math.PI; mouth.add(f); });
+    head.add(mouth); g.add(head);
+    const arms = [-1, 1].map((s) => { const a = K.group(s * 1.75, 2.7, 0.1, K.cyl(0.36, 0.3, 1.6, fur, 0, -0.8, 0), K.ball(0.5, face, 0, -1.65, 0)); g.add(a); return a; });
+    let cracked = false;
+    return { g, headTop: new T.Vector3(0.6, 4.4, 0), dur: 3.4, update(t, dt, fx) {
+      g.position.y = -4 * (1 - fx.ease.outBack(fx.seg(t, 0, 0.4))) - 4.5 * fx.ease.inOut(fx.outP);
+      const beat = fx.seg(t, 0.4, 1.3), wind = fx.seg(t, 1.3, 1.55), punch = fx.seg(t, 1.55, 1.72), back = fx.seg(t, 1.9, 2.5);
+      if (t < 0.4) {
+        mouth.scale.y = 1;
+      } else if (beat < 1) {
+        arms.forEach((a, i) => { a.rotation.z = (i ? 1 : -1) * 0.2; a.rotation.x = -1.2 - Math.max(0, Math.sin(t * 20 + i * Math.PI)) * 0.6; });
+        mouth.scale.y = 1.4 + Math.abs(Math.sin(t * 10)) * 0.6;
+        fx.shake(0.08);
+      } else if (punch < 1) {
+        arms[0].rotation.set(-0.4 + wind * 0.9, 0, -0.3);
+        arms[1].rotation.set(-0.3 * wind - ease.inOut(punch) * 1.4, 0, 0.2);
+        g.position.z = ease.inOut(punch) * 9;
+        g.position.x = -ease.inOut(punch) * 0.9;
+        mouth.scale.y = 2;
+      } else {
+        if (!cracked) { cracked = true; fx.crack(); fx.setText("😜 Kidding! Your computer's fine. Try again!"); }
+        g.position.z = 9 * (1 - ease.inOut(back)); g.position.x = -0.9 * (1 - back);
+        arms.forEach((a, i) => a.rotation.set(-0.3, 0, (i ? 1 : -1) * (0.3 + Math.abs(Math.sin(t * 12)) * 0.5)));
+        head.rotation.z = Math.sin(t * 14) * 0.15; mouth.scale.y = 1 + Math.abs(Math.sin(t * 14));
+        fx.shake(back < 0.3 ? 0.5 * (1 - back / 0.3) : 0);
+      }
+    } };
+  }
+  // A tiny, furious elf.
+  function elf(T, K) {
+    const tunic = K.mat(0x2fa84f), skin = K.mat(0xffd6b8), red = K.mat(0xe8323c), white = K.mat(0xffffff), gold = K.mat(0xffcf3f, { metalness: 0.6, roughness: 0.25 }), dark = K.mat(0x2a160c);
+    const g = new T.Group();
+    g.add(K.ball(0.8, tunic, 0, 1.35, 0, 1, 1.1, 0.9), K.cyl(0.82, 0.82, 0.18, dark, 0, 1.05, 0), K.at(new T.Mesh(new T.BoxGeometry(0.28, 0.24, 0.1), gold), 0, 1.05, 0.8));
+    for (let i = 0; i < 6; i++) g.add(K.cone(0.14, 0.3, tunic, Math.cos((i / 6) * Math.PI * 2) * 0.72, 0.62, Math.sin((i / 6) * Math.PI * 2) * 0.72));
+    const head = K.group(0, 2.6, 0, K.ball(0.7, skin, 0, 0, 0));
+    for (const s of [-1, 1]) { const ear = K.cone(0.16, 0.7, skin, s * 0.8, 0.1, 0); ear.rotation.z = -s * 1.2; head.add(ear); head.add(K.ball(0.14, K.mat(0xff9fb0, { emissive: 0xff5c7a, emissiveIntensity: 0.3 }), s * 0.36, -0.15, 0.55, 1, 0.7, 0.5)); }
+    for (const s of [-1, 1]) head.add(K.ball(0.1, dark, s * 0.23, 0.08, 0.64));
+    const brows = angryBrows(T, K, head, 0.23, 0.28, 0.66, 0.3);
+    const mouth = K.group(0, -0.3, 0.64, K.ball(0.14, K.mat(0x5a0010), 0, 0, 0, 1.4, 0.6, 0.4)); head.add(mouth);
+    const hat = K.group(0, 0.45, -0.05, K.cyl(0.72, 0.74, 0.18, white, 0, 0, 0));
+    const cone = K.cone(0.62, 1.5, K.mat(0xe8323c), 0, 0.8, 0); hat.add(cone);
+    const bell = K.ball(0.14, gold, 0.55, 1.35, 0); hat.add(bell); hat.rotation.z = -0.3;
+    head.add(hat); g.add(head);
+    const arms = [-1, 1].map((s) => { const a = K.group(s * 0.75, 1.8, 0, K.cyl(0.13, 0.12, 0.8, tunic, 0, -0.4, 0), K.ball(0.16, skin, 0, -0.85, 0)); g.add(a); return a; });
+    const legs = [-1, 1].map((s) => {
+      const l = K.group(s * 0.35, 0.65, 0);
+      for (let i = 0; i < 4; i++) l.add(K.cyl(0.12, 0.12, 0.13, i % 2 ? white : red, 0, -0.07 - i * 0.13, 0));
+      const shoe = K.ball(0.18, tunic, 0, -0.6, 0.18, 1, 0.6, 1.8); l.add(shoe);
+      const curl = new T.Mesh(new T.TorusGeometry(0.1, 0.04, 6, 16, Math.PI * 1.4), tunic); curl.position.set(0, -0.5, 0.5); curl.rotation.y = Math.PI / 2; l.add(curl);
+      g.add(l); return l;
+    });
+    g.scale.setScalar(1.15);
+    return { g, headTop: new T.Vector3(0.3, 4.2, 0), update(t, dt, fx) {
+      const on = t > 0.35 && t < 2.2, hop = Math.abs(Math.sin(t * Math.PI * 3.5)), spin = fx.seg(t, 1.1, 1.5);
+      g.position.y = -3 * (1 - fx.ease.outBack(fx.seg(t, 0, 0.35))) - 3.5 * fx.ease.inOut(fx.outP) + (on ? hop * 0.9 : 0);
+      g.rotation.y = Math.PI * 2 * ease.inOut(spin);
+      legs.forEach((l, i) => (l.rotation.x = on ? Math.sin(t * 20 + i * Math.PI) * 0.5 : 0));
+      arms[0].rotation.z = on ? -2.6 + Math.sin(t * 28) * 0.4 : -0.2; arms[1].rotation.z = on ? 0.4 + Math.abs(Math.sin(t * 9)) * 0.6 : 0.2;
+      head.rotation.z = on ? Math.sin(t * 13) * 0.15 : 0;
+      bell.position.x = 0.55 + Math.sin(t * 30) * 0.06;
+      mouth.scale.y = on ? 1.4 + Math.abs(Math.sin(t * 15)) : 1;
+      skin.emissive.setRGB(on ? 0.35 + 0.25 * Math.sin(t * 12) : 0, 0, 0);
+      brows.forEach((b) => (b.position.y = 0.28 - (on ? 0.04 : 0)));
+      fx.shake(on && hop < 0.1 ? 0.15 : 0);
+    } };
+  }
+  const GRUMPS = { brat, ogre, ape, elf };
+
+  // Draws cracked glass where the ape's fist "hit" the screen.
+  function crackScreen() {
+    const c = document.createElement("canvas");
+    c.className = "fx-crack"; c.setAttribute("aria-hidden", "true");
+    c.width = innerWidth * (devicePixelRatio || 1); c.height = innerHeight * (devicePixelRatio || 1);
+    const x = c.getContext("2d"), dpr = devicePixelRatio || 1, cx = c.width * 0.46, cy = c.height * 0.55;
+    x.lineCap = "round";
+    const line = (x0, y0, a, len, w, depth) => {
+      let px = x0, py = y0;
+      x.beginPath(); x.moveTo(px, py);
+      const steps = 6 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < steps; i++) { a += (Math.random() - 0.5) * 0.5; px += Math.cos(a) * (len / steps); py += Math.sin(a) * (len / steps); x.lineTo(px, py);
+        if (depth < 2 && Math.random() < 0.3) { x.stroke(); line(px, py, a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random()), len * 0.4, w * 0.6, depth + 1); x.beginPath(); x.moveTo(px, py); } }
+      x.lineWidth = w; x.strokeStyle = "rgba(255,255,255,.9)"; x.shadowColor = "rgba(0,0,0,.6)"; x.shadowBlur = 4 * dpr; x.stroke();
+    };
+    for (let i = 0; i < 16; i++) line(cx, cy, (i / 16) * Math.PI * 2 + Math.random() * 0.3, (180 + Math.random() * 500) * dpr, (2 + Math.random() * 2) * dpr, 0);
+    for (let r = 1; r <= 3; r++) { x.beginPath(); for (let i = 0; i <= 18; i++) { const a = (i / 18) * Math.PI * 2, rr = r * 38 * dpr * (0.8 + Math.random() * 0.4); x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } x.lineWidth = 1.5 * dpr; x.stroke(); }
+    const flash = x.createRadialGradient(cx, cy, 0, cx, cy, 90 * dpr); flash.addColorStop(0, "rgba(255,255,255,.85)"); flash.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = flash; x.fillRect(0, 0, c.width, c.height);
+    document.body.append(c);
+    document.body.classList.add("fx-smash");
+    setTimeout(() => document.body.classList.remove("fx-smash"), 450);
+    setTimeout(() => c.classList.add("fade"), 1100);
+    setTimeout(() => c.remove(), 1900);
+  }
+
+  /* ---------- Mr. Maxwell, the video teacher (an original big-headed school counselor) ---------- */
+  function teacherModel(T, K) {
+    const skin = K.mat(0xf6d2b4), vest = K.mat(0x6f9bd6, { roughness: 0.8 }), shirt = K.mat(0xffffff), tie = K.mat(0xd8323c), hair = K.mat(0x8a6a4a), dark = K.mat(0x1b1030);
+    const g = new T.Group();
+    g.add(K.ball(1.3, shirt, 0, -0.35, -0.05, 1.12, 0.95, 0.72), K.ball(1.4, vest, 0, -0.8, 0.02, 1.12, 0.88, 0.8));
+    for (const s of [-1, 1]) { const c = K.cone(0.22, 0.4, shirt, s * 0.25, 0.45, 0.85); c.rotation.set(1.3, 0, s * 2.5); g.add(c); }
+    g.add(K.at(new T.Mesh(new T.BoxGeometry(0.22, 0.18, 0.12), tie), 0, 0.38, 1.02));
+    const tieBody = K.cone(0.2, 1.1, tie, 0, -0.2, 1.08); tieBody.rotation.z = Math.PI; g.add(tieBody);
+    const head = K.group(0, 1.95, 0);
+    head.add(K.ball(1.35, skin, 0, 0, 0, 1.12, 1.0, 0.95)); // the big, round head
+    for (const s of [-1, 1]) { head.add(K.ball(0.32, hair, s * 1.3, 0.2, -0.2, 0.7, 1, 1)); head.add(K.ball(0.22, skin, s * 1.48, 0.05, 0, 0.5, 1, 0.8)); }
+    head.add(K.ball(0.5, hair, 0, 1.2, -0.3, 1.2, 0.35, 0.9));
+    const eyes = [-1, 1].map((s) => { const e = K.eye(s * 0.42, 0.15, 1.2, 0.12); head.add(e); return e; });
+    for (const s of [-1, 1]) { const r = new T.Mesh(new T.TorusGeometry(0.3, 0.045, 10, 32), dark); r.position.set(s * 0.42, 0.15, 1.25); head.add(r); }
+    const bridge = K.cyl(0.03, 0.03, 0.25, dark, 0, 0.18, 1.3); bridge.rotation.z = Math.PI / 2; head.add(bridge);
+    const brows = [-1, 1].map((s) => { const b = new T.Mesh(new T.BoxGeometry(0.4, 0.08, 0.08), hair); b.position.set(s * 0.42, 0.58, 1.18); b.rotation.z = s * -0.12; head.add(b); return b; });
+    head.add(K.ball(0.18, K.mat(0xf0bf9c), 0, -0.2, 1.33, 1, 0.9, 0.8));
+    const mouth = K.group(0, -0.62, 1.12, K.ball(0.26, K.mat(0x5a1a24), 0, 0, 0, 1.3, 0.5, 0.4), K.ball(0.13, K.mat(0xff8fa0), 0, -0.06, 0.05, 1.2, 0.4, 0.4));
+    head.add(mouth);
+    g.add(head);
+    const arms = [-1, 1].map((s) => {
+      const a = K.group(s * 1.35, 0.25, 0.2, K.cyl(0.22, 0.2, 1.2, shirt, 0, -0.6, 0), K.ball(0.24, skin, 0, -1.25, 0));
+      if (s > 0) { const stick = K.cyl(0.035, 0.035, 1.6, K.mat(0x8a5a34), 0, -1.3, 0.8); stick.rotation.x = Math.PI / 2; a.add(stick, K.ball(0.06, K.mat(0xffffff), 0, -1.3, 1.6)); }
+      g.add(a); return a;
+    });
+    return { g, head, eyes, brows, mouth, arms };
+  }
+
+  async function teacher(container) {
+    const T = await load();
+    if (!T) return null;
+    let renderer;
+    try { renderer = new T.WebGLRenderer({ alpha: true, antialias: true }); } catch { return null; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputColorSpace = T.SRGBColorSpace;
+    container.append(renderer.domElement);
+    const scene = new T.Scene(), camera = new T.PerspectiveCamera(30, 1, 0.1, 100);
+    camera.position.set(0, 1.2, 11);
+    camera.lookAt(0, 1.0, 0);
+    scene.add(new T.HemisphereLight(0xffffff, 0xd8e6ff, 2.2));
+    const key = new T.DirectionalLight(0xffffff, 2.4); key.position.set(3, 6, 8); scene.add(key);
+    const K = kit(T), m = teacherModel(T, K);
+    scene.add(m.g);
+    let talking = false, gesture = null, gestureAt = 0, alive = true, blinkAt = 2;
+    const size = () => { const w = container.clientWidth || 300, h = container.clientHeight || 300; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+    size();
+    const ro = new ResizeObserver(size); ro.observe(container);
+    const t0 = performance.now();
+    const frame = (now) => {
+      if (!alive) return;
+      const t = (now - t0) / 1000;
+      m.g.position.y = Math.sin(t * 1.6) * 0.04;
+      m.head.rotation.z = Math.sin(t * 0.9) * 0.04 + (talking ? Math.sin(t * 3.1) * 0.05 : 0);
+      m.head.rotation.x = talking ? Math.sin(t * 4.3) * 0.05 : 0;
+      m.mouth.scale.y = talking ? 0.35 + Math.abs(Math.sin(t * 17) * Math.sin(t * 5.3)) * 1.5 : 0.35;
+      m.mouth.scale.x = talking ? 1 - Math.abs(Math.sin(t * 11)) * 0.15 : 1;
+      if (t > blinkAt) { m.eyes.forEach((e) => (e.scale.y = 0.1)); if (t > blinkAt + 0.12) { m.eyes.forEach((e) => (e.scale.y = 1)); blinkAt = t + 2 + Math.random() * 3; } }
+      m.brows.forEach((b, i) => (b.position.y = 0.58 + (talking && Math.sin(t * 1.7) > 0.7 ? 0.1 : 0)));
+      const gp = gesture ? Math.min(1, (t - gestureAt) / 0.4) : 0, gout = gesture && t - gestureAt > 2.2 ? Math.min(1, (t - gestureAt - 2.2) / 0.4) : 0;
+      const amt = gp * (1 - gout);
+      if (gout >= 1) gesture = null;
+      // Right arm points the stick at the board; left hand talks.
+      m.arms[1].rotation.z = 0.15 + amt * 1.9;
+      m.arms[1].rotation.x = -0.2 - amt * 0.3;
+      m.arms[0].rotation.z = -0.15 - (talking ? 0.35 + Math.sin(t * 2.7) * 0.25 : 0);
+      m.arms[0].rotation.x = talking ? -0.5 - Math.sin(t * 3.3) * 0.2 : 0;
+      renderer.render(scene, camera);
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    return {
+      talk: (on) => (talking = on),
+      point: () => { gesture = "point"; gestureAt = (performance.now() - t0) / 1000; },
+      destroy: () => { alive = false; ro.disconnect(); scene.traverse((o) => { o.geometry?.dispose(); if (o.material) [].concat(o.material).forEach((x) => x.dispose()); }); renderer.dispose(); renderer.domElement.remove(); },
+    };
+  }
+
   /* ---------- animation ---------- */
   const ease = { outBack: (p) => { const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); }, inOut: (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2) };
   const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
-  let playing = false;
+  let playing = false, stopReq = false;
 
   async function play(kind, text) {
     if (playing) return true;
@@ -398,7 +639,7 @@ window.FX = (() => {
     if (!T) return false;
     R ||= setup(T);
     if (!R) return false;
-    playing = true;
+    playing = true; stopReq = false;
     const { renderer, scene, camera, canvas, bubble } = R;
     const K = kit(T);
     const W = innerWidth, H = innerHeight;
@@ -411,10 +652,10 @@ window.FX = (() => {
     stage.scale.setScalar(s);
     root.add(stage);
 
-    const angry = kind === "monster";
+    const angry = kind === "monster" || !!GRUMPS[kind];
     stage.position.set(0, -halfH + (angry ? 0.75 : 0.25), 0);
     let who, base = 0, scene3 = null;
-    if (angry) { who = monster(T, K); stage.add(who.g); }
+    if (angry) { who = GRUMPS[kind] ? GRUMPS[kind](T, K) : monster(T, K); stage.add(who.g); }
     else {
       const sc = SCENES[kind] || SCENES.unicorn;
       scene3 = sc.build(T, K);
@@ -450,7 +691,18 @@ window.FX = (() => {
     bubble.className = `fx-bubble${angry ? " angry" : ""}`;
     bubble.style.opacity = "0";
     if (angry) document.body.classList.add("fx-grr");
-    const DUR = angry ? 2.5 : 3.0;
+    const DUR = who.dur || (angry ? 2.6 : 3.0);
+    let shakeAmt = 0;
+    const fxc = {
+      ease, seg, get outP() { return seg((performance.now() - start) / 1000, DUR - 0.4, DUR); },
+      shake: (a) => (shakeAmt = a),
+      crack: crackScreen,
+      setText: (t) => (bubble.textContent = t),
+      puff: (color, x, y, z, vx, vy, size = 0.22) => {
+        const p = new T.Mesh(new T.SphereGeometry(size, 12, 10), new T.MeshStandardMaterial({ color, transparent: true, opacity: 0.85, roughness: 1 }));
+        p.position.set(x, y, z); p.userData = { vx, vy, life: 0 }; stage.add(p); puffs.push(p);
+      },
+    };
     const start = performance.now();
     let last = start;
     const headWorld = new T.Vector3();
@@ -462,7 +714,10 @@ window.FX = (() => {
         stage.scale.setScalar(s * Math.max(0.001, inP * (1 - ease.inOut(outP))));
         camera.position.x = 0; camera.position.y = 0;
 
-        if (kind === "unicorn") {
+        if (who.update) {
+          who.update(t, dt, fxc);
+          camera.position.x = (Math.random() - 0.5) * shakeAmt; camera.position.y = (Math.random() - 0.5) * shakeAmt;
+        } else if (kind === "unicorn") {
           const u = who, dance = seg(t, 0.3, 1.45), twirl = seg(t, 1.45, 2.05), wink = seg(t, 2.05, 2.55);
           const beat = Math.sin(t * Math.PI * 5);
           u.g.position.y = base + (dance > 0 && dance < 1 ? Math.abs(beat) * 0.45 : 0) + Math.sin(twirl * Math.PI) * 1.3;
@@ -569,7 +824,7 @@ window.FX = (() => {
         bubble.style.opacity = t > showAt && t < DUR - 0.35 ? "1" : "0";
 
         renderer.render(scene, camera);
-        if (t < DUR) requestAnimationFrame(frame); else done();
+        if (t < DUR && !stopReq) requestAnimationFrame(frame); else done();
       };
       requestAnimationFrame(frame);
     });
@@ -583,5 +838,5 @@ window.FX = (() => {
     return true;
   }
 
-  return { play, preload: load, animals: ["unicorn", "monkey", "dolphin", ...Object.keys(ZOO)], emoji: { unicorn: "🦄", monkey: "🐒", dolphin: "🐬", ...Object.fromEntries(Object.entries(ZOO).map(([k, v]) => [k, v.emoji])) }, get playing() { return playing; } };
+  return { play, preload: load, animals: ["unicorn", "monkey", "dolphin", ...Object.keys(ZOO)], emoji: { unicorn: "🦄", monkey: "🐒", dolphin: "🐬", ...Object.fromEntries(Object.entries(ZOO).map(([k, v]) => [k, v.emoji])) }, teacher, stop: () => { if (playing) stopReq = true; }, grumps: ["monster", ...Object.keys(GRUMPS)], get playing() { return playing; } };
 })();
