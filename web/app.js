@@ -54,7 +54,14 @@ const ready = (async () => {
 /* ---------- celebrations: a dancing unicorn or monkey for every right answer ---------- */
 const CHEERS = ["Nailed it!", "Yesss!", "You got it!", "So smart!", "Correct!", "Boom!", "Look at you go!", "Perfect!"];
 const GUMDROP_COLORS = ["#ff6fb5", "#ffd84d", "#5fe0d0", "#9f8cff", "#7fe3a0", "#ff9a5c", "#ff5c7a"];
-let celebrating = false, grumpy = false, cheerNext = false;
+let celebrating = false, grumpy = false, pendingFx = null;
+// A new answer always wins: stop whatever is playing, then play the reaction to the latest answer.
+function interruptFx(kind) { pendingFx = kind; window.FX?.stop(); document.querySelector(".celebrate")?.remove(); }
+function fxDone() {
+  celebrating = false; grumpy = false;
+  const next = pendingFx; pendingFx = null;
+  if (next === "cheer") celebrate(); else if (next === "grump") grumble();
+}
 function celebrationsOn() { try { return localStorage.getItem("studyhub:celebrate") !== "off"; } catch { return true; } }
 // Right answers in a row, across lessons (a wrong answer resets it).
 function bumpStreak(ok) {
@@ -69,14 +76,14 @@ function celebrate(special = null, streak = 0) {
   if (!celebrationsOn()) return;
   if (special) queuedSpecial = { special, streak };
   // Got it right while the monster is still stomping? Cut it short and cheer.
-  if (celebrating) { if (grumpy || special) { cheerNext = true; window.FX?.stop(); document.querySelector(".celebrate")?.remove(); } return; }
+  if (celebrating) { if (grumpy || special) interruptFx("cheer"); return; }
   celebrating = true;
   const sp = queuedSpecial; queuedSpecial = null;
   const animal = sp ? sp.special : nextAnimal();
   const monkey = animal === "monkey";
   const cheer = animal === "chipmunk" ? `🍎 ${sp.streak} in a row! Would a pretty girl like an apple? 😉` : `${window.FX?.emoji[animal] || "😉"} ${CHEERS[Math.floor(Math.random() * CHEERS.length)]} 😉`;
   const fx = window.FX ? FX.play(animal, cheer) : Promise.resolve(false);
-  fx.then((ok) => { if (ok) { celebrating = false; if (cheerNext) { cheerNext = false; celebrate(); } } else flatCelebrate(monkey, cheer, animal === "chipmunk" ? "🐿️🍎" : window.FX?.emoji[animal]); });
+  fx.then((ok) => { if (ok) fxDone(); else flatCelebrate(monkey, cheer, animal === "chipmunk" ? "🐿️🍎" : window.FX?.emoji[animal]); });
 }
 // A different animal every time: go through the whole zoo in a shuffled order before any repeats.
 function nextAnimal(all = window.FX?.animals || ["unicorn", "monkey"], key = "zoo") {
@@ -113,7 +120,7 @@ function flatCelebrate(monkey, cheer, emoji) {
   document.body.append(el);
   const t = setTimeout(end, reduced ? 1400 : 2600);
   let ended = false;
-  function end() { if (ended) return; ended = true; clearTimeout(t); clearInterval(w); el.remove(); celebrating = false; if (cheerNext) { cheerNext = false; celebrate(); } }
+  function end() { if (ended) return; ended = true; clearTimeout(t); clearInterval(w); el.remove(); fxDone(); }
   const w = setInterval(() => { if (!el.isConnected) end(); }, 150);
 }
 // Wrong answer: a very grumpy (cartoon) monster.
@@ -125,20 +132,22 @@ const GROWLS = {
   elf: ["NAUGHTY LIST! Try again!", "HMPH! Santa would NOT approve!", "Jingle NOPE! Try again!"],
 };
 function grumble() {
-  if (celebrating || !celebrationsOn()) return;
+  if (!celebrationsOn()) return;
+  // Wrong while an animal is still dancing? Cut it short and bring out the monster.
+  if (celebrating) { if (!grumpy) interruptFx("grump"); return; }
   celebrating = true; grumpy = true;
   const who = nextAnimal(window.FX?.grumps || ["monster"], "grumps");
   const lines = GROWLS[who] || GROWLS.monster;
   const text = ["😡 ", "💢 ", "😤 ", "🤬 "][Math.floor(Math.random() * 4)] + lines[Math.floor(Math.random() * lines.length)];
   const fx = window.FX ? FX.play(who, text) : Promise.resolve(false);
-  const finish = () => { celebrating = false; grumpy = false; if (cheerNext) { cheerNext = false; celebrate(); } };
   fx.then((ok) => {
-    if (ok) { finish(); return; }
+    if (ok) { fxDone(); return; }
     const el = h("div", { class: "celebrate", "aria-hidden": "true" }, h("div", { class: "stage-pop" }, h("div", { class: "dancer monster" }, ({ brat: "😫", ape: "🦍", elf: "🧝" })[who] || "👹"), h("div", { class: "bubble angry" }, text)));
     document.body.append(el);
-    const done = () => { if (!el.isConnected && !celebrating) return; el.remove(); finish(); };
+    let ended = false;
+    const done = () => { if (ended) return; ended = true; clearTimeout(timer); clearInterval(watch); el.remove(); fxDone(); };
     const timer = setTimeout(done, 2000);
-    const watch = setInterval(() => { if (cheerNext) { clearTimeout(timer); clearInterval(watch); done(); } else if (!el.isConnected) clearInterval(watch); }, 100);
+    const watch = setInterval(() => { if (!el.isConnected) done(); }, 100);
   });
 }
 if (celebrationsOn()) setTimeout(() => window.FX?.preload(), 4000); // warm up 3D so the first one plays instantly
