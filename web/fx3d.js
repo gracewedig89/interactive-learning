@@ -259,9 +259,24 @@ window.FX = (() => {
   const SCENES = {
     unicorn: { sky: ["#ffd8f4", "#c7e6ff"], drop: "gumdrop", build: (T, K) => ({ g: rainbow(T, K), stand: 2.95 }) },
     monkey: { sky: ["#d6ffd8", "#7fd69a"], drop: "leaf", build: (T, K) => {
-      const g = new T.Group(); g.add(mound(T, K, 0x5cbf4a), palm(T, K, -2.3, 3.6), palm(T, K, 2.4, 3.1));
-      [[-1.2, 0.45], [1.3, 0.4]].forEach(([x, y]) => { const b = new T.Mesh(new T.TubeGeometry(new T.QuadraticBezierCurve3(new T.Vector3(-0.2, 0, 0), new T.Vector3(0, -0.15, 0), new T.Vector3(0.2, 0, 0)), 10, 0.07, 8), K.mat(0xffe14d)); b.position.set(x, y, 0.8); g.add(b); });
-      return { g, stand: 0.87 }; } },
+      const g = new T.Group(); g.add(mound(T, K, 0x5cbf4a), palm(T, K, -3.4, 5.6), palm(T, K, 3.5, 5.4));
+      // Leafy canopy with two hanging vines to swing on.
+      for (let i = 0; i < 11; i++) g.add(K.ball(0.75 + (i % 3) * 0.15, K.mat([0x3fbf5f, 0x2f9f4a, 0x5ccf5a][i % 3], { roughness: 0.7 }), -4 + i * 0.8, 6.5 + Math.sin(i * 1.7) * 0.25, -0.8 + (i % 2) * 0.3, 1.2, 0.7, 0.8));
+      const vineMat = K.mat(0x4e8a2a, { roughness: 0.8 });
+      const vines = [-1.6, 1.6].map((x) => {
+        const v = K.cyl(0.05, 0.05, 1, vineMat, 0, 0, 0.3);
+        const leaves = [0.3, 0.6].map(() => K.ball(0.1, K.mat(0x5ccf5a), 0, 0, 0.35, 1.6, 0.5, 0.5));
+        g.add(v, ...leaves);
+        return { x, top: 6.1, len: 2.6, mesh: v, leaves, angle: 0 };
+      });
+      const setVine = (vn) => {
+        const ex = vn.x + Math.sin(vn.angle) * vn.len, ey = vn.top - Math.cos(vn.angle) * vn.len;
+        vn.mesh.position.set((vn.x + ex) / 2, (vn.top + ey) / 2, 0.3); vn.mesh.scale.y = vn.len; vn.mesh.rotation.z = vn.angle;
+        vn.leaves.forEach((l, i) => { const f = [0.3, 0.6][i]; l.position.set(vn.x + Math.sin(vn.angle) * vn.len * f + 0.08, vn.top - Math.cos(vn.angle) * vn.len * f, 0.35); });
+        return { x: ex, y: ey };
+      };
+      vines.forEach(setVine);
+      return { g, stand: 0.87, vines, setVine, tick: (t) => vines.forEach((vn) => { if (!vn.held) { vn.angle = Math.sin(t * 2 + vn.x) * 0.12; setVine(vn); } }) }; } },
     panda: { sky: ["#eaffe4", "#9fdd96"], drop: "leaf", build: (T, K) => {
       const g = new T.Group(); g.add(mound(T, K, 0x76c95b));
       [[-2.6, 4], [-1.9, 3.2], [2.0, 3.6], [2.7, 2.8]].forEach(([x, h]) => {
@@ -335,6 +350,13 @@ window.FX = (() => {
       g.add(hive);
       const bees = [0, 1, 2].map(() => { const b = K.group(0, 0, 0, K.ball(0.12, K.mat(0xffd21a), 0, 0, 0, 1.3, 1, 1), K.ball(0.1, K.mat(0xffffff, { transparent: true, opacity: 0.8 }), 0, 0.12, 0, 0.6, 0.3, 1)); g.add(b); return b; });
       return { g, stand: 0.87, tick: (t) => bees.forEach((b, i) => b.position.set(2.3 + Math.cos(t * 4 + i * 2) * 0.9, 2.2 + Math.sin(t * 6 + i) * 0.5, Math.sin(t * 4 + i * 2) * 0.6)) }; } },
+    turtle: { sky: ["#8fe3ff", "#1d6fb8"], drop: "riseBubble", build: (T, K) => reefScene(T, K) },
+    octopus: { sky: ["#8fe3ff", "#1d6fb8"], drop: "riseBubble", build: (T, K) => reefScene(T, K) },
+    seahorse: { sky: ["#8fe3ff", "#1d6fb8"], drop: "riseBubble", build: (T, K) => reefScene(T, K) },
+    clownfish: { sky: ["#8fe3ff", "#1d6fb8"], drop: "riseBubble", build: (T, K) => reefScene(T, K) },
+    crab: { sky: ["#8fe3ff", "#1d6fb8"], drop: "riseBubble", build: (T, K) => reefScene(T, K) },
+    whale: { sky: ["#e2f7ff", "#6cc8ff"], drop: "bubble", build: (T, K) => SCENES.dolphin.build(T, K) },
+    otter: { sky: ["#e2f7ff", "#6cc8ff"], drop: "bubble", build: (T, K) => SCENES.dolphin.build(T, K) },
     chipmunk: { sky: ["#ffe3f3", "#c9b8ff"], drop: "petal", build: (T, K) => castleScene(T, K) },
     dolphin: { sky: ["#e2f7ff", "#6cc8ff"], drop: "bubble", build: (T, K) => {
       const g = new T.Group();
@@ -382,6 +404,7 @@ window.FX = (() => {
     if (kind === "leaf" || kind === "leafFall") { const l = K.ball(0.22, K.mat(pick(kind === "leafFall" ? [0xff7a1a, 0xff3b30, 0xffb21a, 0xc9541a] : [0x3fbf5f, 0x6fd65b, 0x2f9f4a])), 0, 0, 0, 1.4, 0.12, 0.7); return { m: l, v: 1, flutter: true }; }
     if (kind === "petal" || kind === "petalYellow") return { m: K.ball(0.14, K.mat(pick(kind === "petal" ? [0xffb3d9, 0xff8fc6, 0xffffff, 0xd9b3ff] : [0xffe14d, 0xfff3a6, 0xffffff])), 0, 0, 0, 1, 0.3, 0.8), v: 1, flutter: true };
     if (kind === "snow") return { m: new T.Mesh(new T.IcosahedronGeometry(0.12, 0), K.mat(0xffffff, { emissive: 0xdff4ff, emissiveIntensity: 0.6 })), v: 0.8, flutter: true };
+    if (kind === "riseBubble") return { m: new T.Mesh(new T.SphereGeometry(0.15, 14, 10), new T.MeshPhysicalMaterial({ color: 0xdff6ff, transparent: true, opacity: 0.5, roughness: 0, clearcoat: 1 })), v: 2.2, flutter: true, rise: true };
     if (kind === "bubble") return { m: new T.Mesh(new T.SphereGeometry(0.18, 16, 12), new T.MeshPhysicalMaterial({ color: 0xbfeaff, transparent: true, opacity: 0.45, roughness: 0, clearcoat: 1 })), v: 1.2, flutter: true };
     if (kind === "honey") return { m: K.ball(0.14, K.mat(0xffb81a, { roughness: 0.1, metalness: 0.3 }), 0, 0, 0, 1, 1.3, 1), v: 3 };
     return { m: gumdrop(T, pick(colors)), v: 3 };
@@ -699,6 +722,173 @@ window.FX = (() => {
     } };
   }
 
+  /* ---------- sea creatures (reef and ocean scenes) ---------- */
+  function reefScene(T, K) {
+    const g = new T.Group();
+    g.add(K.ball(3.2, K.mat(0xf2d59a, { roughness: 0.9 }), 0, -2.3, 0, 1.1, 0.9, 0.6));
+    const weeds = [-2.8, -2.2, 2.3, 2.9, -0.9].map((x, i) => {
+      const w = K.group(x, 0.55, -0.4 + (i % 2) * 0.3);
+      let parent = w; const segs = [];
+      for (let k = 0; k < 6; k++) { const seg = K.group(0, k ? 0.38 : 0, 0, K.ball(0.13, K.mat(i % 2 ? 0x2faa5a : 0x4fcf6a, { roughness: 0.6 }), 0, 0.19, 0, 0.8, 1.6, 0.5)); parent.add(seg); segs.push(seg); parent = seg; }
+      g.add(w); return segs;
+    });
+    [[1.4, 0.45, 0xff6f91], [-1.6, 0.4, 0xff9f4a], [0.6, 0.55, 0xb48cff]].forEach(([x, y, c]) => {
+      const cor = K.group(x, y, 0.2);
+      for (let k = 0; k < 5; k++) { const b = K.cone(0.09, 0.6, K.mat(c, { roughness: 0.5 }), Math.cos(k * 1.3) * 0.2, 0.25, Math.sin(k * 1.3) * 0.15); b.rotation.z = Math.cos(k * 1.3) * 0.6; cor.add(b, K.ball(0.09, K.mat(c), Math.cos(k * 1.3) * 0.38, 0.55, Math.sin(k * 1.3) * 0.15)); }
+      g.add(cor);
+    });
+    g.add(K.ball(0.4, K.mat(0x8a8f9a, { roughness: 0.9 }), -0.2, 0.5, 0.5, 1.3, 0.6, 1), K.ball(0.3, K.mat(0x9aa0aa, { roughness: 0.9 }), 2.1, 0.45, 0.6, 1.2, 0.6, 1));
+    const shell = K.group(-2.5, 0.55, 0.8, K.ball(0.2, K.mat(0xffc2d9), 0, 0, 0, 1.2, 0.4, 1), K.ball(0.07, K.mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 0.6 }), 0, 0.08, 0.05)); g.add(shell);
+    return { g, stand: 2.2, tick: (t) => weeds.forEach((segs, i) => segs.forEach((sg, k) => (sg.rotation.z = Math.sin(t * 1.6 + i + k * 0.6) * 0.12))) };
+  }
+  const swimTo = (g, t, fx) => g.position.set(-5 + 5 * ease.inOut(fx.seg(t, 0.15, 0.9)), fx.base + Math.sin(t * 2.4) * 0.25, 0.3);
+  function turtle(T, K) {
+    const g = new T.Group(), body = K.group();
+    body.add(K.ball(1, K.mat(0x3f9a4a, { roughness: 0.5 }), 0, 0.1, 0, 1.25, 0.55, 1), K.ball(0.95, K.mat(0xe8d49a), 0, -0.05, 0, 1.2, 0.3, 0.95));
+    [[0, 0.62, 0], [0.55, 0.5, 0.35], [-0.55, 0.5, 0.35], [0.55, 0.5, -0.35], [-0.55, 0.5, -0.35], [0, 0.45, 0.62], [0, 0.45, -0.62]].forEach(([x, y, z]) => body.add(K.ball(0.26, K.mat(0x2a6f35), x, y, z, 1, 0.25, 1)));
+    const head = K.group(1.45, 0.15, 0, K.ball(0.36, K.mat(0x8fd08a), 0, 0, 0, 1.2, 0.95, 0.95));
+    const winkEye = K.eye(0.25, 0.12, 0.28, 0.07), other = K.eye(0.25, 0.12, -0.28, 0.07);
+    const smile = new T.Mesh(new T.TorusGeometry(0.1, 0.02, 6, 16, Math.PI), K.mat(0x1b1030)); smile.position.set(0.38, -0.08, 0.1); smile.rotation.set(0, 1.2, Math.PI);
+    head.add(winkEye, other, smile); body.add(head);
+    const flip = [[0.7, 1], [0.7, -1], [-0.8, 1], [-0.8, -1]].map(([x, s], i) => { const f = K.group(x, -0.05, s * 0.85, K.ball(i < 2 ? 0.5 : 0.3, K.mat(0x8fd08a), 0, 0, s * 0.25, i < 2 ? 1.1 : 0.9, 0.15, 0.55)); body.add(f); return f; });
+    g.add(body);
+    return { g, winkEye, headTop: new T.Vector3(1.4, 1.3, 0), showAt: 2.0, update(t, dt, fx) {
+      const loop = fx.seg(t, 1.0, 1.8), turn = fx.seg(t, 1.9, 2.3);
+      swimTo(g, t, fx);
+      g.position.y += Math.sin(loop * Math.PI * 2) * 1.2; g.position.x += Math.sin(loop * Math.PI * 2) * 0.8;
+      body.rotation.z = loop * Math.PI * 2;
+      g.rotation.y = -Math.PI / 2 * ease.inOut(turn) * 0.8;
+      flip.forEach((f, i) => (f.rotation.x = Math.sin(t * 7 + (i % 2) * Math.PI) * 0.6 * (i % 2 ? -1 : 1)));
+      winkEye.scale.y = t > 2.3 && t < 2.7 ? 0.12 : 1;
+    } };
+  }
+  function octopus(T, K) {
+    const purple = K.mat(0xb06ae8, { roughness: 0.45 }), g = new T.Group();
+    const head = K.group(0, 1.9, 0, K.ball(0.95, purple, 0, 0, 0, 1, 1.15, 1));
+    [[0.4, 0.5, 0.75], [-0.35, 0.7, 0.7], [0.1, 0.9, 0.8]].forEach(([x, y, z]) => head.add(K.ball(0.11, K.mat(0xd9a6ff), x, y, z, 1, 1, 0.4)));
+    const winkEye = K.eye(0.32, -0.05, 0.85, 0.14), other = K.eye(-0.32, -0.05, 0.85, 0.14);
+    const smile = new T.Mesh(new T.TorusGeometry(0.16, 0.03, 6, 16, Math.PI), K.mat(0x1b1030)); smile.rotation.z = Math.PI; smile.position.set(0, -0.4, 0.88);
+    head.add(winkEye, other, smile, K.ball(0.1, K.mat(0xff9fc0), 0.5, -0.3, 0.75, 1, 0.6, 0.4), K.ball(0.1, K.mat(0xff9fc0), -0.5, -0.3, 0.75, 1, 0.6, 0.4));
+    g.add(head);
+    const arms = Array.from({ length: 8 }, (_, i) => {
+      const a = (i / 8) * Math.PI * 2, root = K.group(Math.cos(a) * 0.55, 1.2, Math.sin(a) * 0.45);
+      root.rotation.y = -a; let parent = root; const segs = [];
+      for (let k = 0; k < 5; k++) { const sg = K.group(k ? 0.3 : 0, 0, 0, K.ball(0.17 - k * 0.025, purple, 0.15, 0, 0, 1.3, 1, 1)); parent.add(sg); segs.push(sg); parent = sg; }
+      g.add(root); return segs;
+    });
+    return { g, winkEye, headTop: new T.Vector3(0.3, 3.3, 0), update(t, dt, fx) {
+      const spin = fx.seg(t, 1.1, 1.8);
+      g.position.set(0, fx.base + Math.abs(Math.sin(t * 4)) * 0.6, 0.2);
+      g.rotation.y = Math.PI * 2 * ease.inOut(spin) + Math.sin(t * 2) * 0.2;
+      arms.forEach((segs, i) => segs.forEach((sg, k) => (sg.rotation.z = -0.5 + Math.sin(t * 6 + i * 0.8 + k * 0.7) * 0.45)));
+      head.scale.set(1 + Math.sin(t * 8) * 0.03, 1 - Math.sin(t * 8) * 0.03, 1);
+      winkEye.scale.y = t > 2.2 && t < 2.6 ? 0.12 : 1;
+    } };
+  }
+  function seahorse(T, K) {
+    const gold = K.mat(0xffb84a, { roughness: 0.4 }), g = new T.Group();
+    const spine = [[0, 2.4, 0.9], [0.15, 2.0, 0.85], [0.2, 1.55, 0.8], [0.1, 1.1, 0.75], [-0.05, 0.7, 0.6], [0, 0.35, 0.45], [0.2, 0.1, 0.32], [0.38, 0.12, 0.24], [0.4, 0.32, 0.18]];
+    spine.forEach(([x, y, r]) => g.add(K.ball(r * 0.5, gold, x, y, 0)));
+    const head = K.group(-0.05, 2.75, 0, K.ball(0.42, gold, 0, 0, 0));
+    const snout = K.cyl(0.08, 0.12, 0.55, gold, -0.45, -0.12, 0); snout.rotation.z = Math.PI / 2 + 0.3; head.add(snout);
+    [-0.15, 0.05, 0.25].forEach((x) => head.add(K.cone(0.06, 0.2, gold, x, 0.42, 0)));
+    const winkEye = K.eye(-0.08, 0.08, 0.36, 0.09); head.add(winkEye, K.ball(0.08, K.mat(0xff9fc0), -0.2, -0.12, 0.3, 1, 0.6, 0.4));
+    g.add(head);
+    const fin = K.ball(0.3, K.mat(0xffe08a, { transparent: true, opacity: 0.8 }), 0.4, 1.7, 0, 0.3, 1, 0.9); g.add(fin);
+    g.rotation.y = -0.4;
+    return { g, winkEye, headTop: new T.Vector3(0, 3.6, 0), update(t, dt, fx) {
+      const spin = fx.seg(t, 1.0, 1.7);
+      g.position.set(Math.sin(t * 1.5) * 0.6, fx.base + 0.3 + Math.sin(t * 3) * 0.4, 0.3);
+      g.rotation.y = -0.4 + Math.PI * 2 * ease.inOut(spin);
+      g.rotation.z = Math.sin(t * 2.5) * 0.1;
+      fin.scale.set(0.3 + Math.abs(Math.sin(t * 30)) * 0.15, 1, 0.9);
+      winkEye.scale.y = t > 2.1 && t < 2.5 ? 0.12 : 1;
+    } };
+  }
+  function clownfish(T, K) {
+    const orange = K.mat(0xff7a1a, { roughness: 0.35 }), white = K.mat(0xffffff), black = K.mat(0x1b1030), g = new T.Group();
+    g.add(K.ball(0.8, orange, 0, 0, 0, 1.3, 0.8, 0.55));
+    [0.55, 0, -0.55].forEach((x, i) => { const band = K.ball(0.82, white, x, 0, 0, 0.12, 0.82 - Math.abs(x) * 0.25, 0.57); g.add(band); });
+    const tail = K.group(-1.05, 0, 0, K.ball(0.4, orange, -0.25, 0, 0, 0.6, 1, 0.2)); g.add(tail);
+    g.add(K.ball(0.3, orange, 0.1, 0.62, 0, 1.2, 0.6, 0.15), K.ball(0.22, orange, 0.3, -0.35, 0.45, 1, 0.4, 0.3));
+    const winkEye = K.eye(0.7, 0.15, 0.4, 0.11), other = K.eye(0.7, 0.15, -0.4, 0.11);
+    const smile = new T.Mesh(new T.TorusGeometry(0.1, 0.025, 6, 16, Math.PI), black); smile.position.set(0.95, -0.15, 0.2); smile.rotation.set(0, 1.1, Math.PI);
+    g.add(winkEye, other, smile);
+    return { g, winkEye, headTop: new T.Vector3(0.4, 1.2, 0), update(t, dt, fx) {
+      const eight = fx.seg(t, 0.2, 2.0), turn = fx.seg(t, 2.0, 2.3), a = eight * Math.PI * 2;
+      g.position.set(Math.sin(a) * 2.6, fx.base + 0.6 + Math.sin(a * 2) * 0.9, 0.4);
+      const dx = Math.cos(a), dy = Math.cos(a * 2) * 2 * 0.9 / 2.6;
+      g.rotation.set(0, turn > 0 ? -Math.PI / 2 * ease.inOut(turn) * 0.8 : dx < 0 ? Math.PI : 0, turn > 0 ? 0 : Math.atan(dy) * (dx < 0 ? -1 : 1));
+      tail.rotation.y = Math.sin(t * 18) * 0.5;
+      winkEye.scale.y = t > 2.35 && t < 2.7 ? 0.12 : 1;
+    } };
+  }
+  function crab(T, K) {
+    const red = K.mat(0xff4a3a, { roughness: 0.4 }), g = new T.Group();
+    g.add(K.ball(0.85, red, 0, 0.6, 0, 1.3, 0.6, 0.9));
+    const eyes = [-1, 1].map((s) => { const st = K.group(s * 0.3, 1.0, 0.3, K.cyl(0.05, 0.05, 0.4, red, 0, 0.2, 0)); const e = K.eye(0, 0.45, 0.05, 0.12); e.children[0].scale.setScalar(1); st.add(K.ball(0.14, K.mat(0xffffff), 0, 0.45, 0), e); g.add(st); return { st, e }; });
+    const smile = new T.Mesh(new T.TorusGeometry(0.15, 0.03, 6, 16, Math.PI), K.mat(0x1b1030)); smile.rotation.z = Math.PI; smile.position.set(0, 0.55, 0.78); g.add(smile);
+    const claws = [-1, 1].map((s) => {
+      const arm = K.group(s * 1.0, 0.7, 0.3, K.cyl(0.09, 0.09, 0.6, red, s * 0.25, 0.2, 0));
+      arm.children[0].rotation.z = -s * 0.8;
+      const top = K.group(s * 0.5, 0.55, 0, K.cone(0.16, 0.5, red, 0, 0.25, 0)), bot = K.group(s * 0.5, 0.55, 0, K.cone(0.13, 0.4, red, 0, 0.2, 0));
+      top.rotation.z = -s * 0.3; bot.rotation.z = s * 0.9; arm.add(top, bot); g.add(arm); return { arm, top, bot, s };
+    });
+    const legs = [];
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const l = K.group(s * 0.9, 0.45, -0.2 + k * 0.25, K.cyl(0.05, 0.04, 0.6, red, s * 0.25, -0.2, 0)); l.children[0].rotation.z = s * 0.9; g.add(l); legs.push(l); }
+    return { g, winkEye: eyes[1].e, headTop: new T.Vector3(0.3, 1.9, 0), update(t, dt, fx) {
+      const walk = Math.sin(t * 3);
+      g.position.set(walk * 1.8, fx.base - 1.6 + Math.abs(Math.sin(t * 12)) * 0.08, 0.6);
+      g.rotation.z = Math.sin(t * 12) * 0.05;
+      claws.forEach((c, i) => { c.top.rotation.z = -c.s * (0.3 + Math.max(0, Math.sin(t * 14 + i)) * 0.5); c.arm.rotation.z = c.s * (Math.sin(t * 6 + i) * 0.3 - 0.3); });
+      legs.forEach((l, i) => (l.rotation.x = Math.sin(t * 16 + i) * 0.4));
+      eyes.forEach((e, i) => (e.st.rotation.z = Math.sin(t * 4 + i) * 0.2));
+      eyes[1].e.scale.y = t > 2.2 && t < 2.6 ? 0.12 : 1;
+    } };
+  }
+  function whale(T, K) {
+    const blue = K.mat(0x3f7fd0, { roughness: 0.35 }), g = new T.Group();
+    g.add(K.ball(1.5, blue, 0, 0, 0, 1.8, 0.95, 1), K.ball(1.3, K.mat(0xdff0ff), 0.3, -0.45, 0, 1.6, 0.5, 0.9));
+    const tail = K.group(-2.4, 0.3, 0, K.cyl(0.25, 0.45, 0.8, blue, 0.3, 0, 0));
+    tail.children[0].rotation.z = Math.PI / 2;
+    for (const s of [-1, 1]) { const f = K.ball(0.55, blue, -0.2, 0.25, s * 0.45, 0.5, 0.12, 1); f.rotation.x = s * 0.4; tail.add(f); }
+    g.add(tail);
+    const winkEye = K.eye(1.9, 0.2, 0.75, 0.12), other = K.eye(1.9, 0.2, -0.75, 0.12);
+    const smile = new T.Mesh(new T.TorusGeometry(0.5, 0.04, 6, 24, Math.PI * 0.8), K.mat(0x1b1030)); smile.position.set(2.2, -0.25, 0.35); smile.rotation.set(0, 1.1, Math.PI * 1.1);
+    g.add(winkEye, other, smile, K.ball(0.14, K.mat(0xff9fc0), 2.2, -0.05, 0.75, 1, 0.6, 0.4));
+    return { g, winkEye, headTop: new T.Vector3(1.0, 2.6, 0), showAt: 1.8, update(t, dt, fx) {
+      const rise = fx.seg(t, 0.1, 0.7), slap = fx.seg(t, 1.4, 1.9);
+      g.position.set(-0.3, fx.base - 2.0 + ease.outBack(rise) * 2.9 + Math.sin(t * 2) * 0.1, -0.3);
+      g.rotation.set(0, 0.35, Math.sin(t * 1.8) * 0.06);
+      tail.rotation.z = Math.sin(slap * Math.PI) * 1.1 + Math.sin(t * 3) * 0.1;
+      if (t > 0.7 && t < 1.5 && Math.random() < 0.8) fx.spray(1.6 + (Math.random() - 0.5) * 0.2, fx.base + 2.3, (Math.random() - 0.5) * 1.8, 5 + Math.random() * 2.5);
+      if (slap > 0.8 && slap < 1 && Math.random() < 0.9) fx.spray(-2.6, fx.base, (Math.random() - 0.5) * 4, 3 + Math.random() * 2);
+      winkEye.scale.y = t > 2.1 && t < 2.5 ? 0.12 : 1;
+    } };
+  }
+  function otter(T, K) {
+    const brown = K.mat(0x7a4a2a, { roughness: 0.6 }), cream = K.mat(0xe8c8a0), g = new T.Group(), body = K.group();
+    body.add(K.ball(0.7, brown, 0, 0, 0, 1.7, 0.6, 0.7), K.ball(0.6, cream, 0.1, 0.18, 0, 1.4, 0.4, 0.55));
+    const head = K.group(1.25, 0.35, 0, K.ball(0.45, brown, 0, 0, 0), K.ball(0.28, cream, 0.3, -0.08, 0, 1, 0.8, 1));
+    const winkEye = K.eye(0.25, 0.15, 0.3, 0.07), other = K.eye(0.25, 0.15, -0.3, 0.07);
+    head.add(winkEye, other, K.ball(0.07, K.mat(0x1b1030), 0.55, 0, 0), K.ball(0.12, brown, -0.05, 0.35, 0.3), K.ball(0.12, brown, -0.05, 0.35, -0.3));
+    body.add(head);
+    const paws = [-1, 1].map((s) => { const p = K.group(0.6, 0.45, s * 0.25, K.ball(0.12, brown, 0, 0, 0)); body.add(p); return p; });
+    const shellMesh = K.group(0.55, 0.55, 0, K.ball(0.22, K.mat(0xffc2d9), 0, 0, 0, 1, 0.4, 1)); body.add(shellMesh);
+    const tail = K.ball(0.3, brown, -1.35, 0, 0, 1.8, 0.3, 0.6); body.add(tail);
+    g.add(body);
+    return { g, winkEye, headTop: new T.Vector3(1.2, 1.5, 0), update(t, dt, fx) {
+      const roll = fx.seg(t, 1.0, 1.7), turn = fx.seg(t, 1.9, 2.2);
+      g.position.set(-4 + 4 * ease.outBack(fx.seg(t, 0.1, 0.8)), fx.base + 0.35 + Math.sin(t * 3) * 0.12, 0.2);
+      g.scale.setScalar(1.3);
+      body.rotation.x = Math.PI * 2 * ease.inOut(roll);
+      g.rotation.set(0, -0.5 * ease.inOut(turn), Math.sin(t * 2.5) * 0.08);
+      paws.forEach((p, i) => (p.position.x = 0.6 + Math.abs(Math.sin(t * 10 + i * Math.PI)) * 0.15));
+      winkEye.scale.y = t > 2.2 && t < 2.6 ? 0.12 : 1;
+    } };
+  }
+  const SEA = { turtle, octopus, seahorse, clownfish, crab, whale, otter };
+
   /* ---------- animation ---------- */
   const ease = { outBack: (p) => { const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); }, inOut: (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2) };
   const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
@@ -733,7 +923,7 @@ window.FX = (() => {
       scene3 = sc.build(T, K);
       base = scene3.stand;
       stage.add(skyDisc(T, ...sc.sky), scene3.g);
-      who = kind === "chipmunk" ? chipmunk(T, K) : kind === "dolphin" ? dolphin(T, K) : kind === "monkey" ? monkey(T, K) : ZOO[kind] ? critter(T, K, ZOO[kind]) : unicorn(T, K);
+      who = SEA[kind] ? SEA[kind](T, K) : kind === "chipmunk" ? chipmunk(T, K) : kind === "dolphin" ? dolphin(T, K) : kind === "monkey" ? monkey(T, K) : ZOO[kind] ? critter(T, K, ZOO[kind]) : unicorn(T, K);
       who.g.position.y = base;
       if (who.swimmer) who.g.position.z = -0.2;
       stage.add(who.g);
@@ -741,9 +931,9 @@ window.FX = (() => {
     }
     const dropKind = angry ? null : (SCENES[kind] || SCENES.unicorn).drop;
     const drops = angry ? [] : Array.from({ length: 34 }, (_, i) => {
-      const { m: d, v, flutter } = makeDrop(T, K, i % 2 && dropKind !== "gumdrop" ? dropKind : "gumdrop");
-      d.position.set((Math.random() * 2 - 1) * halfW, halfH + 1 + Math.random() * 6, -2 + Math.random() * 4);
-      d.userData = { v: v + Math.random() * (flutter ? 1 : 3), flutter, sway: Math.random() * 6, spin: new T.Vector3(Math.random() * 4 - 2, Math.random() * 4 - 2, Math.random() * 4 - 2) };
+      const { m: d, v, flutter, rise } = makeDrop(T, K, i % 2 && dropKind !== "gumdrop" ? dropKind : "gumdrop");
+      d.position.set((Math.random() * 2 - 1) * halfW, rise ? -halfH - 1 - Math.random() * 6 : halfH + 1 + Math.random() * 6, -2 + Math.random() * 4);
+      d.userData = { v: v + Math.random() * (flutter ? 1 : 3), flutter, rise, sway: Math.random() * 6, spin: new T.Vector3(Math.random() * 4 - 2, Math.random() * 4 - 2, Math.random() * 4 - 2) };
       d.scale.setScalar(0.8 + Math.random() * 0.8);
       root.add(d); return d;
     });
@@ -770,6 +960,10 @@ window.FX = (() => {
       shake: (a) => (shakeAmt = a),
       crack: crackScreen,
       setText: (t) => (bubble.textContent = t),
+      spray: (x, y, vx, vy) => {
+        const d = new T.Mesh(new T.SphereGeometry(0.09, 8, 6), new T.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0xffffff : 0x9fe0ff, transparent: true, opacity: 0.95, roughness: 0.1 }));
+        d.position.set(x, y, 0.3); d.userData = { vx, vy, life: 0, drop: true }; stage.add(d); puffs.push(d);
+      },
       puff: (color, x, y, z, vx, vy, size = 0.22) => {
         const p = new T.Mesh(new T.SphereGeometry(size, 12, 10), new T.MeshStandardMaterial({ color, transparent: true, opacity: 0.85, roughness: 1 }));
         p.position.set(x, y, z); p.userData = { vx, vy, life: 0 }; stage.add(p); puffs.push(p);
@@ -798,6 +992,24 @@ window.FX = (() => {
           u.tail.rotation.x = Math.sin(t * 9) * 0.5;
           u.g.rotation.y = -0.65 + Math.PI * 2 * ease.inOut(twirl) + (wink > 0 ? 0.35 * Math.sin(wink * Math.PI) : 0);
           u.winkEye.scale.y = wink > 0.15 && wink < 0.75 ? 0.12 : 1;
+        } else if (kind === "monkey" && scene3?.vines) {
+          // Swing vine to vine, then hang one-handed and wink.
+          const m = who, [A, B] = scene3.vines, sA = seg(t, 0.25, 1.05), fly = seg(t, 1.05, 1.2), sB = seg(t, 1.2, 1.9), hang = seg(t, 1.9, 3.0);
+          A.held = sA > 0 && sA < 1; B.held = t >= 1.2;
+          let hand;
+          if (sA < 1) { A.angle = -1.0 + 2.0 * ease.inOut(sA); hand = scene3.setVine(A); }
+          else if (fly < 1) { A.angle = 1.0 - fly; scene3.setVine(A); B.angle = -0.5; const a = { x: A.x + Math.sin(1.0) * A.len, y: A.top - Math.cos(1.0) * A.len }, b = scene3.setVine(B); hand = { x: a.x + (b.x - a.x) * fly, y: a.y + (b.y - a.y) * fly + Math.sin(fly * Math.PI) * 0.5 }; }
+          else if (sB < 1) { B.angle = -0.5 + 1.4 * ease.inOut(sB); hand = scene3.setVine(B); }
+          else { B.angle = 0.9 * Math.cos(hang * Math.PI * 3) * (1 - hang); hand = scene3.setVine(B); }
+          const swingAngle = sA < 1 ? A.angle : B.angle;
+          m.g.position.set(hand.x - 0.78, hand.y - 2.93, 0.4);
+          m.g.rotation.set(0, 0.2, swingAngle * 0.5);
+          m.arms[1].rotation.z = Math.PI - 0.05;
+          m.arms[0].rotation.z = sB >= 1 ? -2.2 + Math.sin(t * 12) * 0.5 : -0.9 - Math.sin(t * 8) * 0.3;
+          m.legs.forEach((l, i) => (l.rotation.x = Math.sin(t * 6 + i * Math.PI) * 0.5));
+          m.head.rotation.z = sB >= 1 ? 0.15 : Math.sin(t * 5) * 0.1;
+          m.banana.visible = false;
+          m.winkEye.scale.y = t > 2.35 && t < 2.7 ? 0.12 : 1;
         } else if (kind === "monkey") {
           const m = who, dance = seg(t, 0.3, 2.4), beat = Math.sin(t * Math.PI * 4.5);
           m.g.position.y = base + (dance > 0 && dance < 1 ? Math.abs(beat) * 0.5 : 0);
@@ -884,7 +1096,7 @@ window.FX = (() => {
         }
         for (const d of drops) {
           if (d.userData.flutter) { d.position.x += Math.sin(t * 3 + d.userData.sway) * 0.9 * dt; d.userData.v += 1.5 * dt; } else d.userData.v += 9 * dt;
-          d.position.y -= d.userData.v * dt;
+          d.position.y += (d.userData.rise ? 1 : -1) * d.userData.v * dt;
           d.rotation.x += d.userData.spin.x * dt; d.rotation.y += d.userData.spin.y * dt; d.rotation.z += d.userData.spin.z * dt;
         }
         // Speech bubble floats above the character's head.
@@ -892,7 +1104,7 @@ window.FX = (() => {
         headWorld.project(camera);
         bubble.style.left = `${((headWorld.x + 1) / 2) * W}px`;
         bubble.style.top = `${((1 - headWorld.y) / 2) * H}px`;
-        const showAt = angry ? 0.45 : kind === "unicorn" || kind === "dolphin" ? 2.0 : kind === "chipmunk" ? 1.75 : 0.9;
+        const showAt = who.showAt ?? (angry ? 0.45 : kind === "unicorn" || kind === "dolphin" ? 2.0 : kind === "chipmunk" ? 1.75 : 0.9);
         bubble.style.opacity = t > showAt && t < DUR - 0.35 ? "1" : "0";
 
         renderer.render(scene, camera);
@@ -910,5 +1122,5 @@ window.FX = (() => {
     return true;
   }
 
-  return { play, preload: load, animals: ["unicorn", "monkey", "dolphin", ...Object.keys(ZOO)], emoji: { unicorn: "🦄", monkey: "🐒", dolphin: "🐬", ...Object.fromEntries(Object.entries(ZOO).map(([k, v]) => [k, v.emoji])) }, teacher, stop: () => { if (playing) stopReq = true; }, grumps: ["monster", ...Object.keys(GRUMPS)], get playing() { return playing; } };
+  return { play, preload: load, animals: ["unicorn", "monkey", "dolphin", ...Object.keys(SEA), ...Object.keys(ZOO)], emoji: { unicorn: "🦄", monkey: "🐒", dolphin: "🐬", turtle: "🐢", octopus: "🐙", seahorse: "🌊", clownfish: "🐠", crab: "🦀", whale: "🐳", otter: "🦦", ...Object.fromEntries(Object.entries(ZOO).map(([k, v]) => [k, v.emoji])) }, teacher, stop: () => { if (playing) stopReq = true; }, grumps: ["monster", ...Object.keys(GRUMPS)], get playing() { return playing; } };
 })();
