@@ -576,7 +576,13 @@ function feedback(ok, why, askText, miss) {
   return h("div", { class: `fb ${ok ? "good" : "bad"}` },
     h("b", {}, ok ? "✓ Correct. " : "✗ Not quite. "), why || "",
     !ok && askText ? h("button", { class: "linkish", onclick: () => tutor.ask(askText) }, "Ask the tutor why") : null,
-    !ok && miss && sample ? h("button", { class: "linkish", onclick: () => practice.make([miss]) }, "Practice this") : null);
+    !ok && miss && sample ? h("button", { class: "linkish", onclick: () => practice.make([miss]) }, "Practice this") : null,
+    !ok && miss && sample ? h("button", { class: "linkish", onclick: () => {
+      const lesson = currentLesson();
+      openVideo({ key: `miss:${state.course}:${state.lessonId}:${miss.concept.slice(0, 80)}`, courseKey: state.course, topic: miss.concept.slice(0, 90), lessonTitle: lesson?.title,
+        focus: `She just got this wrong: ${miss.concept}. ${miss.detail || ""} Walk her through how to figure out the right answer herself, step by step, and why her answer doesn't work.`,
+        material: lesson ? lessonMaterial(lesson) : miss.concept });
+    } }, "🎬 Show me in a video") : null);
 }
 const note = (t) => state.activity.push(t);
 
@@ -677,7 +683,7 @@ const RENDER = {
     h("ul", { class: "defs" }, b.items.map(([t, d]) => h("li", {}, h("b", {}, t), ": ", d, " ",
       h("button", { class: "term-video", title: `${TEACHER} explains “${t}”`, "aria-label": `Watch ${TEACHER} explain ${t}`, onclick: () => {
         const lesson = currentLesson();
-        openVideo({ key: `term:${state.course}:${t.toLowerCase()}`, courseKey: state.course, topic: t, term: { term: t, definition: d }, material: lesson ? lessonMaterial(lesson) : d });
+        openVideo({ key: `term:${state.course}:${state.lessonId}:${t.toLowerCase()}`, courseKey: state.course, topic: t, term: { term: t, definition: d }, lessonTitle: lesson?.title, material: lesson ? lessonMaterial(lesson) : d });
       } }, "🎬 explain"))))),
 
   classify(b) {
@@ -1274,9 +1280,25 @@ function renderLesson(lesson) {
   const course = state.course;
   const article = h("article", { class: "lesson" },
     h("div", { class: "row" }, h("h1", { style: "flex:1" }, lesson.title), done ? h("span", { class: "chip done" }, "✓ Completed") : null),
-    h("button", { class: "watch-btn", onclick: () => openVideo({ key: `${course}:${state.lessonId || lesson.title}`, courseKey: course, topic: lesson.title, material: lessonMaterial(lesson) }) },
+    h("button", { class: "watch-btn", onclick: () => openVideo({ key: `${course}:${state.lessonId || lesson.title}`, courseKey: course, topic: lesson.title, lessonTitle: lesson.title, material: lessonMaterial(lesson) }) },
       h("span", { class: "watch-face", "aria-hidden": "true" }, "👨‍🏫"), h("span", {}, h("b", {}, `🎬 Watch ${TEACHER} explain this lesson`), h("small", {}, "A short video with chalkboard visuals, read out loud"))),
-    lesson.blocks.map((b) => RENDER[b.type]?.(b)));
+    lesson.blocks.map((b, bi) => { const el = RENDER[b.type]?.(b); if (el?.dataset) el.dataset.bi = bi; return el; }));
+  // A 🎬 button on each section: a short video on just that part of this lesson.
+  article.querySelectorAll(":scope > [data-bi]").forEach((sec) => {
+    const n = Number(sec.dataset.bi);
+    const h2 = sec.querySelector("h2");
+    const b = lesson.blocks[n];
+    if (!b || b.type === "definitions" || b.type === "schema") return;
+    const title = h2?.textContent.trim() || (b.type === "objectives" ? "What you need to know"
+      : sec.querySelector("table") ? "the reference table" : (sec.querySelector("h3, p b, p")?.textContent || "this part").trim().replace(/\s+/g, " ").replace(/:$/, "").slice(0, 50));
+    const btnHost = h2 || sec.insertBefore(h("div", { class: "section-video" }), sec.firstChild);
+    btnHost.append(" ", h("button", { class: "term-video", title: `${TEACHER} explains this part`, "aria-label": `Watch ${TEACHER} explain ${title}`, onclick: () => {
+      const obj = lesson.blocks.find((x) => x.type === "objectives")?.text || "";
+      openVideo({ key: `${course}:${state.lessonId || lesson.title}:s${n}`, courseKey: course, topic: `${lesson.title}: ${title}`, lessonTitle: lesson.title,
+        focus: `Explain just the "${title}" part of this lesson so she can do it on her own.`,
+        material: `Lesson objectives: ${obj}\nThis part: ${b.type === "text" ? String(b.html || "").replace(/<[^>]+>/g, " ") : JSON.stringify({ ...b, html: undefined })}\n\nWhole lesson for context: ${lessonMaterial(lesson).slice(0, 5000)}` });
+    } }, "🎬 explain"));
+  });
   track.base = track.count; // items after this belong to the extra practice set
   practice.area = h("div", { class: "lesson", id: "extra-practice" });
   article.append(practice.area, progressBlock());
@@ -2925,22 +2947,26 @@ function mikey2D(container) {
 /* ---------- video lessons: Mr. Mikey explains with a chalkboard ---------- */
 const TEACHER = "Mr. Mikey";
 let videoCache = null;
-async function getVideo(key) { videoCache ||= (await store.get("videos-mikey3"))?.items || {}; return videoCache[key]; }
+async function getVideo(key) { videoCache ||= (await store.get("videos-mikey4"))?.items || {}; return videoCache[key]; }
 function putVideo(key, script) {
   videoCache[key] = { ...script, at: Date.now() };
   const keys = Object.keys(videoCache).sort((a, b) => videoCache[b].at - videoCache[a].at);
   for (const k of keys.slice(30)) delete videoCache[k];
-  store.set("videos-mikey3", { items: videoCache });
+  store.set("videos-mikey4", { items: videoCache });
 }
 
-async function makeVideoScript({ courseKey, topic, material, term }) {
+async function makeVideoScript({ courseKey, topic, material, term, focus, lessonTitle }) {
   const course = courseOf(courseKey);
   const prefer = courseKey === "accounting" ? "Lean on equation, tAccount, and journal visuals with real dollar amounts."
     : courseKey === "sql" ? "Lean on sql visuals (a short query plus its small result) and table visuals, using the practice database tables: customers, products, orders, order_items."
     : "Lean on steps, compare, term, and table visuals.";
-  const data = await sample.json(`You are ${TEACHER}, ${course.tutor}, recording a short video lesson for a college student. ${TEACHER} is a friendly, very earnest school counselor who got asked to teach: slow and sincere, over-explains simple things with plain everyday examples, a little awkward and dry-funny, and says "mkay" once in a while, about once per scene at most, never after every sentence. Write the way people really talk: contractions, short sentences, commas where he'd take a breath, little fillers like "so," "now," and "alright." Never mention any TV show or real person. Keep every fact exactly right.
+  const data = await sample.json(`You are ${TEACHER}, ${course.tutor}, recording a short video lesson for a college student. ${TEACHER} is a friendly, very earnest school counselor who got asked to teach: sincere and upbeat, explains simple things with plain everyday examples, a little awkward, and he LOVES corny dad jokes. Slip in a quick, groan-worthy dad joke or pun whenever there's a chance (about one every scene or two), ideally about the topic itself (like "Why did the accountant break up with the calculator? She felt he was always counting on her."), then get right back to teaching. Keep the jokes clean and never at the student's expense. He also and says "mkay" once in a while, about once per scene at most, never after every sentence. Write the way people really talk: contractions, short sentences, commas where he'd take a breath, little fillers like "so," "now," and "alright." Never mention any TV show or real person. Keep every fact exactly right.
 
-${term ? `Explain just this one term so it really clicks: "${term.term}" (${term.definition}). Use 3-4 scenes: what it is, a real-life example, how it shows up in this class, and a quick check question.` : `Teach "${topic}" in 6-8 scenes: why it matters, the key ideas one at a time, a worked example, a common mistake, and a quick check question at the end.`}
+${lessonTitle ? `She's on the lesson "${lessonTitle}". Build this video ONLY from that lesson's material below: follow its objectives, use its own examples, accounts, numbers, tables, terms, and questions, and teach exactly what the lesson expects her to be able to do. Don't drift into general or unrelated topics.` : ""}
+${focus ? `Focus: ${focus}` : ""}
+${term ? `Explain just this one term so it really clicks: "${term.term}" (${term.definition}). Use 3-4 scenes: what it is, how this lesson uses it (with the lesson's own example), a real-life comparison, and a quick check question.`
+  : focus ? `Use 3-5 scenes: say in one line what this part is about, walk through it step by step with the lesson's own example, show the reasoning she needs to figure it out herself, point out the usual mistake, and end with a quick check question (don't give away graded answers).`
+  : `Teach "${topic}" in 6-8 scenes: first say in one sentence what this lesson is about and what she'll be able to do after it, then cover each objective in order with the lesson's own examples, one worked example, a common mistake, and a quick check question at the end.`}
 Each scene has "say" (what he says out loud: 20-50 words, conversational, no markdown or symbols he'd have to read) and ONE "visual" for the chalkboard that shows what he's saying. ${prefer}
 
 Visual types (use the exact fields):
@@ -2956,8 +2982,8 @@ Visual types (use the exact fields):
 
 Reply with JSON only: {"title": "", "scenes": [{"say": "", "visual": {}}]}
 
---- WHAT THE STUDENT IS STUDYING ---
-${String(material || "").slice(0, 9000)}`, { cache: false, modelTier: "default" });
+--- THE LESSON MATERIAL ---
+${String(material || "").slice(0, 14000)}`, { cache: false, modelTier: "default" });
   const scenes = (Array.isArray(data?.scenes) ? data.scenes : []).filter((x) => x?.say).map((x) => ({ say: mkayify(String(x.say)), visual: x.visual && typeof x.visual === "object" ? x.visual : { type: "bullets", items: [] } }));
   if (!scenes.length) throw { code: "invalid_json" };
   return { title: String(data.title || topic || term?.term || "Lesson"), scenes };
@@ -3036,7 +3062,7 @@ function voicePanel(onChange) {
   return box;
 }
 
-async function openVideo({ key, courseKey, topic, material, term }) {
+async function openVideo({ key, courseKey, topic, material, term, focus, lessonTitle }) {
   document.querySelector(".vplayer")?.remove();
   const board = h("div", { class: "board", "aria-live": "polite" });
   const caption = h("p", { class: "vcaption" });
@@ -3079,8 +3105,8 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       const m = sen.trim().match(/^(.*?)[,\s]*\b(m+'?kay)([.!?]*)$/i);
       const body = m ? m[1] : sen.trim();
       const bits = body.split(/(?<=[,;:—])\s+/).filter((b) => b.trim());
-      bits.forEach((b, j) => out.push({ text: b.trim(), pause: j < bits.length - 1 ? 70 + Math.random() * 60 : m ? 90 : 220, lift: j === 0 ? 0.04 : 0 }));
-      if (m) out.push({ text: "mmm kay" + (m[3].includes("!") ? "!" : "?"), pause: 250, mkay: true });
+      bits.forEach((b, j) => out.push({ text: b.trim(), pause: j < bits.length - 1 ? 40 + Math.random() * 50 : m ? 60 : 150, lift: j === 0 ? 0.04 : 0 }));
+      if (m) out.push({ text: "mmm kay" + (m[3].includes("!") ? "!" : "?"), pause: 170, mkay: true });
     }
     return out;
   };
@@ -3096,7 +3122,7 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       const u = new SpeechSynthesisUtterance(line);
       const v = speech.voice(); if (v) u.voice = v;
       const jitter = 1 + (Math.random() - 0.5) * 0.08;
-      u.rate = (ph.mkay ? 1.0 : 1.12) * rate * jitter;
+      u.rate = (ph.mkay ? 1.1 : 1.25) * rate * jitter;
       u.pitch = Math.max(0.5, Math.min(2, speech.pitch * (ph.mkay ? 0.9 : 1 + (ph.lift || 0) + (Math.random() - 0.5) * 0.06)));
       u.onboundary = (e) => { if (e.name === "word" || e.charLength) tch?.word?.(line.substr(e.charIndex, e.charLength || 6)); };
       // Some devices never report the end of speech; don't let the video get stuck.
@@ -3134,7 +3160,7 @@ async function openVideo({ key, courseKey, topic, material, term }) {
     script = await getVideo(key);
     if (!script) {
       if (!sample) throw { code: "not_granted" };
-      script = await makeVideoScript({ courseKey, topic, material, term });
+      script = await makeVideoScript({ courseKey, topic, material, term, focus, lessonTitle });
       putVideo(key, script);
     }
     if (!el.isConnected) return;
@@ -3145,7 +3171,7 @@ async function openVideo({ key, courseKey, topic, material, term }) {
     board.replaceChildren(h("p", { class: "bad" }, e?.code === "not_granted" && !sample ? "Video lessons work when Study Hub is open in Claude." : sampleErrorText(e)));
   }
 }
-const lessonMaterial = (lesson) => lesson.blocks.map((b) => b.type === "objectives" ? `Objectives: ${b.text}` : b.type === "text" ? String(b.html || "").replace(/<[^>]+>/g, " ")
+const lessonMaterial = (lesson) => (track?.saved?.missed?.length ? `Things she has gotten wrong in this lesson so far (make sure the video clears these up): ${track.saved.missed.slice(-6).map((m) => m.concept).join("; ")}\n` : "") + lesson.blocks.map((b) => b.type === "objectives" ? `Objectives: ${b.text}` : b.type === "text" ? String(b.html || "").replace(/<[^>]+>/g, " ")
   : JSON.stringify({ ...b, html: undefined })).join("\n").replace(/\s+/g, " ");
 
 /* ---------- views ---------- */
