@@ -199,6 +199,7 @@ async function loadState() {
   state.worksheets = (await store.get("worksheets"))?.items || [];
   state.scholarships = (await store.get("scholarships"))?.items || [];
   state.profile = (await store.get("profile")) || {};
+  state.goals = { vision: "", goals: [], plan: null, chat: [], ...((await store.get("goals")) || {}) };
   state.explore.topics = (await store.get("explore"))?.topics || state.explore.topics;
   mergeStats(state.stats, await store.get("stats"));
   state.deadlines = (d?.items || []).map(normalizeDeadline);
@@ -2622,6 +2623,205 @@ function topicView(t) {
   return view;
 }
 
+/* ---------- goals: vision, goal check-ins, and a 1 / 5 / 10 year plan ---------- */
+let goalsTimer;
+const saveGoals = () => { clearTimeout(goalsTimer); goalsTimer = setTimeout(() => store.set("goals", state.goals), 500); };
+const HORIZONS = [
+  { key: "year", label: "This year", by: () => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return `by ${d.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`; } },
+  { key: "five", label: "5 years", by: () => `by ${new Date().getFullYear() + 5}` },
+  { key: "decade", label: "This decade", by: () => `by ${new Date().getFullYear() + 10}` },
+];
+const FIT = { strong: ["Fits your vision", "good"], partial: ["Partly fits", "warn"], weak: ["Doesn't fit yet", "bad"] };
+
+function goalsContext() {
+  const g = state.goals, p = state.profile || {};
+  const about = ["major", "year", "careerGoals", "about", "activities", "challenges"].map((k) => (p[k] ? `${k}: ${p[k]}` : "")).filter(Boolean).join("\n");
+  return [
+    `Today is ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. The student is at Utah Tech University taking ${COURSES.map((c) => c.title).join(", ")}.`,
+    `Her greater vision, in her words:\n${g.vision.trim() || "(not written yet)"}`,
+    g.goals.length ? `Her goals:\n${g.goals.map((x) => `- [${x.id}] ${x.text}${x.done ? " (done)" : ""}${x.horizon ? ` (she put it in: ${x.horizon})` : ""}`).join("\n")}` : "",
+    about ? `From her scholarship "about me":\n${about}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+const COACH_RULES = "You're a warm, honest life and career coach for a college student. Use only what she has told you; never invent facts about her. Be specific and practical, point out conflicts or gaps kindly, and keep her in charge of her own goals.";
+
+async function checkGoal(goal) {
+  const data = await sample.json(`${COACH_RULES}
+
+${goalsContext()}
+
+Look at this one goal and help her see how it fits her greater vision:
+"${goal.text}"
+
+Reply with JSON only:
+{
+  "fit": "strong" | "partial" | "weak",
+  "why": "2-3 sentences on how it connects to (or pulls away from) her vision",
+  "sharper": "the same goal rewritten to be specific and measurable, in her voice",
+  "horizon": "year" | "five" | "decade",
+  "firstSteps": ["2-4 concrete next steps she could start this month"],
+  "question": "one question that would help her decide or clarify"
+}`, { cache: false });
+  goal.check = {
+    fit: FIT[data.fit] ? data.fit : "partial", why: String(data.why || ""), sharper: String(data.sharper || ""),
+    firstSteps: (Array.isArray(data.firstSteps) ? data.firstSteps : []).map(String).slice(0, 5), question: String(data.question || ""), at: new Date().toISOString(),
+  };
+  if (!goal.horizon && HORIZONS.some((x) => x.key === data.horizon)) goal.horizon = data.horizon;
+  saveGoals();
+}
+
+async function organizeGoals() {
+  const g = state.goals;
+  const data = await sample.json(`${COACH_RULES}
+
+${goalsContext()}
+
+Organize her goals into a plan she can see: this year, the next 5 years, and this decade. Put each of her goals where it belongs (respect where she already placed one), and break each into 2-4 milestones for that time frame. If a bigger goal needs a smaller step sooner, add that step to the earlier time frame and say it supports the bigger goal. Only add goals she didn't write when they're clearly needed to reach her vision, and mark them "suggested": true.
+
+Reply with JSON only:
+{
+  "throughLine": "1-2 sentences: the thread connecting everything to her vision",
+  "year": { "theme": "a short name for this year", "items": [{ "goalId": "id from the list, or empty", "title": "...", "why": "one line on how it serves the vision", "milestones": ["..."], "suggested": false }] },
+  "five": { "theme": "...", "items": [ ... ] },
+  "decade": { "theme": "...", "items": [ ... ] },
+  "gaps": ["0-3 honest notes: parts of her vision no goal covers yet, or goals that pull against each other"]
+}`, { cache: false, modelTier: "default" });
+  // Keep checked-off milestones when the plan is redone.
+  const doneBefore = new Set();
+  for (const hz of HORIZONS) for (const it of g.plan?.[hz.key]?.items || []) for (const m of it.milestones) if (m.done) doneBefore.add(m.text.toLowerCase());
+  const plan = { throughLine: String(data.throughLine || ""), gaps: (Array.isArray(data.gaps) ? data.gaps : []).map(String).slice(0, 4), at: new Date().toISOString() };
+  for (const hz of HORIZONS) {
+    const src = data[hz.key] || {};
+    plan[hz.key] = { theme: String(src.theme || ""), items: (Array.isArray(src.items) ? src.items : []).map((it) => ({
+      id: uid(), goalId: String(it.goalId || ""), title: String(it.title || ""), why: String(it.why || ""), suggested: !!it.suggested,
+      milestones: (Array.isArray(it.milestones) ? it.milestones : []).map((m) => ({ text: String(m), done: doneBefore.has(String(m).toLowerCase()) })).slice(0, 6),
+    })).filter((it) => it.title) };
+    for (const it of plan[hz.key].items) { const goal = g.goals.find((x) => x.id === it.goalId); if (goal && !goal.horizon) goal.horizon = hz.key; }
+  }
+  g.plan = plan;
+  saveGoals();
+}
+
+function goalsView() {
+  const g = state.goals;
+  const root = h("main", { class: "home goals-page" });
+  const status = (el, text, bad) => el.replaceChildren(h("span", { class: bad ? "bad" : "muted" }, text));
+
+  const vision = h("textarea", { id: "g-vision", rows: 5, placeholder: "Who do you want to be? What kind of life, work, and impact do you want in 10 years? Write it however it comes out." }, g.vision);
+  const visionNote = h("small", { class: "muted", role: "status" }, g.vision ? "Saved" : "");
+  vision.addEventListener("input", () => { g.vision = vision.value; visionNote.textContent = "Saving…"; saveGoals(); clearTimeout(vision._t); vision._t = setTimeout(() => (visionNote.textContent = "Saved ✓"), 700); });
+
+  const newGoal = h("textarea", { id: "g-new", rows: 2, placeholder: "e.g. Get an accounting internship, pay off my car, run a half marathon, start a business…" });
+  const addStatus = h("div");
+  const add = async (check) => {
+    const text = newGoal.value.trim();
+    if (!text) return;
+    const goal = { id: uid(), text, createdAt: new Date().toISOString(), horizon: "", done: false };
+    g.goals.push(goal); newGoal.value = ""; saveGoals();
+    if (check && sample) { status(addStatus, "Claude is looking at how this fits your vision…"); try { await checkGoal(goal); } catch (e) { status(addStatus, sampleErrorText(e), true); } }
+    draw();
+  };
+
+  const list = h("div", { class: "goal-list" });
+  const planBox = h("div");
+  const drawList = () => list.replaceChildren(...(g.goals.length ? g.goals.map(goalCard) : [h("p", { class: "muted", style: "margin:0" }, "No goals yet. Add your first one above.")]));
+  const goalCard = (goal) => {
+    const st = h("div");
+    const c = goal.check;
+    const horizon = h("select", { "aria-label": "Time frame", onchange: (e) => { goal.horizon = e.target.value; saveGoals(); } },
+      h("option", { value: "" }, "When?"), HORIZONS.map((hz) => h("option", { value: hz.key, selected: goal.horizon === hz.key || null }, `${hz.label} (${hz.by()})`)));
+    return h("article", { class: `goal-card${goal.done ? " is-done" : ""}` },
+      h("div", { class: "row", style: "align-items:flex-start" },
+        h("label", { class: "goal-text" }, h("input", { type: "checkbox", checked: goal.done || null, onchange: (e) => { goal.done = e.target.checked; saveGoals(); drawList(); if (goal.done) celebrate(); } }), h("span", {}, goal.text)),
+        c ? h("span", { class: `chip fit-${FIT[c.fit][1]}` }, FIT[c.fit][0]) : null),
+      c ? h("div", { class: "goal-check" },
+        h("p", { style: "margin:0" }, c.why),
+        c.sharper ? h("p", { style: "margin:0" }, h("b", {}, "Sharper: "), c.sharper, " ",
+          h("button", { class: "linkish", onclick: () => { goal.text = c.sharper; c.sharper = ""; saveGoals(); drawList(); } }, "Use this")) : null,
+        c.firstSteps.length ? h("div", {}, h("b", {}, "First steps"), h("ul", { class: "points" }, c.firstSteps.map((x) => h("li", {}, x)))) : null,
+        c.question ? h("p", { class: "note", style: "margin:0" }, "🤔 ", c.question, " ",
+          h("button", { class: "linkish", onclick: () => { coachInput.value = `About my goal "${goal.text}": ${c.question}\n\nMy answer: `; coachInput.focus(); coachInput.scrollIntoView({ block: "center", behavior: "smooth" }); } }, "Answer it")) : null) : null,
+      h("div", { class: "row" }, horizon,
+        h("button", { class: `btn small${c ? " quiet" : ""}`, disabled: !sample || null, onclick: async (e) => {
+          e.currentTarget.disabled = true; status(st, "Checking how this fits your vision…");
+          try { await checkGoal(goal); drawList(); } catch (err) { status(st, sampleErrorText(err), true); e.currentTarget.disabled = false; }
+        } }, c ? "Check again" : "🔍 How does this fit?"),
+        h("button", { class: "linkish", onclick: () => { if (confirm("Delete this goal?")) { g.goals = g.goals.filter((x) => x !== goal); saveGoals(); drawList(); } } }, "Delete")),
+      st);
+  };
+
+  const drawPlan = () => {
+    const p = g.plan;
+    const run = h("button", { class: "btn", disabled: !sample || !g.goals.length || null, onclick: async () => {
+      run.disabled = true; planStatus.replaceChildren(h("span", { class: "muted" }, h("span", { class: "spinner small" }), " Organizing your goals by year, 5 years, and decade…"));
+      try { await organizeGoals(); drawPlan(); drawList(); } catch (e) { run.disabled = false; status(planStatus, sampleErrorText(e), true); }
+    } }, p ? "🔄 Re-organize my plan" : "✨ Organize my plan");
+    const planStatus = h("p", { role: "status", style: "margin:0" });
+    planBox.replaceChildren(
+      h("div", { class: "panel-head" }, h("h2", {}, "Your plan"), run),
+      !g.goals.length ? h("p", { class: "muted", style: "margin:0" }, "Add a few goals, then Claude will lay them out for you here.") : null,
+      planStatus,
+      p?.throughLine ? h("p", { class: "through-line" }, "🧭 ", p.throughLine) : null,
+      p ? h("div", { class: "horizons" }, HORIZONS.map((hz, i) => {
+        const col = p[hz.key] || { items: [] };
+        return h("section", { class: `horizon h${i}` },
+          h("header", {}, h("span", { class: "eyebrow" }, `${hz.label} · ${hz.by()}`), col.theme ? h("h3", {}, col.theme) : null),
+          col.items.length ? col.items.map((it) => {
+            const done = it.milestones.filter((m) => m.done).length;
+            return h("div", { class: `plan-item${it.suggested ? " suggested" : ""}` },
+              h("b", {}, it.title), it.suggested ? h("span", { class: "chip" }, "suggested") : null,
+              it.why ? h("p", { class: "muted", style: "margin:.15rem 0 .3rem;font-size:.88rem" }, it.why) : null,
+              it.milestones.length ? h("ul", { class: "milestones" }, it.milestones.map((m) => h("li", {}, h("label", {},
+                h("input", { type: "checkbox", checked: m.done || null, onchange: (e) => { m.done = e.target.checked; saveGoals(); if (m.done) celebrate(); drawPlan(); } }), h("span", {}, m.text))))) : null,
+              it.milestones.length ? h("div", { class: "bar thin", role: "progressbar", "aria-valuenow": done, "aria-valuemin": 0, "aria-valuemax": it.milestones.length }, h("span", { style: `width:${(done / it.milestones.length) * 100}%` })) : null);
+          }) : h("p", { class: "muted", style: "margin:0" }, "Nothing here yet."));
+      })) : null,
+      p?.gaps?.length ? h("div", { class: "note" }, h("b", {}, "Worth thinking about"), h("ul", { class: "points" }, p.gaps.map((x) => h("li", {}, x)))) : null,
+      p ? h("p", { class: "muted", style: "font-size:.85rem;margin:0" }, `Organized ${new Date(p.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Re-organize after you add or change goals; checked-off milestones stay checked.`) : null);
+  };
+
+  // Talk it through: a coaching chat that knows her vision and goals.
+  const coachLog = h("div", { class: "log goal-log", "aria-live": "polite" });
+  const coachInput = h("textarea", { id: "g-chat", rows: 2, placeholder: "Bounce an idea off Claude… (Enter to send)" });
+  const drawChat = () => {
+    coachLog.replaceChildren(...(g.chat.length ? g.chat.map((m) => m.role === "assistant" ? h("div", { class: "msg assistant", html: md(m.content || "…") }) : h("div", { class: "msg user" }, m.content))
+      : [h("p", { class: "muted", style: "margin:0" }, "Ask things like “Does grad school fit my vision?”, “Which goal should I focus on first?”, or “Help me put my vision into words.”")]));
+    coachLog.scrollTop = coachLog.scrollHeight;
+  };
+  const sendCoach = async () => {
+    const text = coachInput.value.trim();
+    if (!text || !sample) return;
+    coachInput.value = "";
+    g.chat.push({ role: "user", content: text });
+    const reply = { role: "assistant", content: "" };
+    g.chat.push(reply); drawChat();
+    const bubble = coachLog.lastElementChild;
+    try {
+      const { text: full } = await sample([{ role: "user", content: `${COACH_RULES} Keep replies short and conversational, end with one question when it helps.\n\n${goalsContext()}` },
+        ...g.chat.slice(-20, -1).filter((m) => m.content)], { cache: false, onText: ({ text }) => { bubble.innerHTML = md(text); coachLog.scrollTop = coachLog.scrollHeight; } });
+      reply.content = full;
+    } catch (e) { reply.content = (e.text ? e.text + "\n\n" : "") + `_${sampleErrorText(e)}_`; }
+    g.chat = g.chat.slice(-60);
+    saveGoals(); drawChat();
+  };
+  coachInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendCoach(); } });
+
+  const draw = () => { drawList(); drawPlan(); drawChat(); };
+  root.append(
+    h("div", { class: "hello" }, h("span", { class: "eyebrow" }, "Goals"), h("h1", {}, "Where are you headed?")),
+    !sample ? h("p", { class: "note bad", style: "margin:0" }, "Claude's feedback works when this page is open in Claude (claude.ai or the Claude app). You can still write and save your goals.") : null,
+    h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Your greater vision"), visionNote), vision),
+    h("section", { class: "panel" }, h("h2", {}, "Your goals"),
+      h("label", { for: "g-new" }, "Add a goal", newGoal),
+      h("div", { class: "row" }, h("button", { class: "btn", disabled: !sample || null, onclick: () => add(true) }, "Add & see how it fits"), h("button", { class: "btn quiet", onclick: () => add(false) }, "Just add it")),
+      addStatus, list),
+    h("section", { class: "panel" }, planBox),
+    h("section", { class: "panel" }, h("h2", {}, "Talk it through"), coachLog,
+      h("div", { class: "composer goal-composer" }, coachInput, h("button", { class: "btn", disabled: !sample || null, onclick: sendCoach }, "Send"))));
+  draw();
+  return root;
+}
+
 /* ---------- views ---------- */
 const app = $("#app");
 function currentLesson() {
@@ -2649,7 +2849,8 @@ function topbar() {
     h("nav", { class: "tabs", "aria-label": "Classes" }, COURSES.map((c) =>
       h("button", { class: "tab", "data-course": c.key, "aria-current": state.course === c.key ? "page" : null, onclick: () => go("class", c.key, (LESSONS[c.key] || [])[0]?.id || null) }, c.title)),
       h("button", { class: "tab", "data-course": "explore", "aria-current": state.view === "explore" || state.course === "explore" ? "page" : null, onclick: () => { state.explore.topic = null; go("explore"); } }, "🧭 Explore"),
-      h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships")),
+      h("button", { class: "tab", "aria-current": state.view === "scholarships" ? "page" : null, onclick: () => go("scholarships") }, "💰 Scholarships"),
+      h("button", { class: "tab", "data-course": "goals", "aria-current": state.view === "goals" ? "page" : null, onclick: () => go("goals") }, "🎯 Goals")),
     h("button", { class: "linkish cheer-toggle", "aria-pressed": String(celebrationsOn()), title: "3D unicorn or monkey when you're right, grumpy monster when you're not",
       onclick: (e) => { const on = !celebrationsOn(); try { localStorage.setItem("studyhub:celebrate", on ? "on" : "off"); } catch {} e.currentTarget.setAttribute("aria-pressed", String(on)); e.currentTarget.textContent = on ? "🦄 Party on" : "🦄 Party off"; if (on) celebrate(); } },
       celebrationsOn() ? "🦄 Party on" : "🦄 Party off"));
@@ -2659,10 +2860,11 @@ function render() {
   document.body.classList.remove("tutor-open");
   if (state.view === "class" && COURSES.some((c) => c.key === state.course)) document.body.dataset.course = state.course;
   else if (state.view === "explore" || state.course === "explore") document.body.dataset.course = "explore";
+  else if (state.view === "goals") document.body.dataset.course = "goals";
   else delete document.body.dataset.course;
   document.body.querySelector(".fab")?.remove();
   goldSea(document.body.dataset.course === "explore");
-  app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "explore" ? exploreView() : classView());
+  app.replaceChildren(topbar(), state.view === "home" ? homeView() : state.view === "scholarships" ? scholarshipsView() : state.view === "goals" ? goalsView() : state.view === "explore" ? exploreView() : classView());
   document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar")?.offsetHeight || 56}px`);
   if (state.view === "scholarships" && state.lessonId) document.getElementById("sch-" + state.lessonId)?.scrollIntoView({ block: "start" });
 }
