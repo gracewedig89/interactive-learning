@@ -2816,19 +2816,38 @@ function mikey2D(container) {
   wrap.innerHTML = `<svg viewBox="0 0 300 380" role="img" aria-label="Mr. Mikey, your teacher">
   <defs>
     <radialGradient id="mk-skin" cx="45%" cy="38%" r="65%"><stop offset="0" stop-color="#ffe6cf"/><stop offset="1" stop-color="#f2c49c"/></radialGradient>
+    <pattern id="mk-tweed" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#6b5230"/><path d="M0 8 L8 0 M-2 2 L2 -2 M6 10 L10 6" stroke="#8a6c42" stroke-width="1.6"/><circle cx="2" cy="6" r=".9" fill="#4a3620"/></pattern>
+    <pattern id="mk-check" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#f5efe0"/><path d="M0 4 H8 M4 0 V8" stroke="#d8c7a0" stroke-width="1.2"/></pattern>
     <radialGradient id="mk-nose" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffb9a0"/><stop offset="1" stop-color="#e98a6f"/></radialGradient>
   </defs>
+  <g class="mk-office" opacity=".95">
+    <rect x="-40" y="-20" width="380" height="420" fill="#d9ceb0"/>
+    <rect x="228" y="120" width="70" height="200" fill="#8a5a34" stroke="#5a3a1a" stroke-width="3"/>
+    <g stroke="#5a3a1a" stroke-width="3"><line x1="228" y1="170" x2="298" y2="170"/><line x1="228" y1="220" x2="298" y2="220"/><line x1="228" y1="270" x2="298" y2="270"/></g>
+    <g><rect x="234" y="136" width="9" height="32" fill="#b83a3a"/><rect x="245" y="140" width="8" height="28" fill="#3a6a8a"/><rect x="255" y="134" width="10" height="34" fill="#d8a83a"/><rect x="236" y="186" width="10" height="32" fill="#4a7a4a"/><rect x="248" y="190" width="8" height="28" fill="#8a4a8a"/></g>
+    <circle cx="276" cy="200" r="14" fill="#4a8ad8" stroke="#2a4a6a" stroke-width="2"/><path d="M268 196 Q276 190 282 198 Q278 206 270 204 Z" fill="#6ab04a"/>
+    <path d="M8 120 Q30 90 20 60 M20 120 Q44 100 50 70 M14 120 Q4 96 -6 86" fill="none" stroke="#3a8a3a" stroke-width="4"/>
+    <g fill="#4aa04a"><ellipse cx="20" cy="60" rx="9" ry="6"/><ellipse cx="50" cy="70" rx="9" ry="6"/><ellipse cx="-6" cy="86" rx="9" ry="6"/><ellipse cx="34" cy="92" rx="8" ry="5"/></g>
+    <path d="M0 120 L36 120 L30 150 L6 150 Z" fill="#c46a3a" stroke="#6a3a1a" stroke-width="2"/>
+  </g>
   <g class="mk-body">
-    <path d="M66 380 Q58 318 150 300 Q242 318 234 380 Z" fill="#e6a634" stroke="#3a2a1a" stroke-width="4"/>
-    <ellipse cx="150" cy="362" rx="62" ry="30" fill="#f0b448" stroke="#3a2a1a" stroke-width="3"/>
-    <ellipse cx="118" cy="344" rx="9" ry="6" fill="#c98a1e" opacity=".7"/><circle cx="196" cy="366" r="5" fill="#8a6a2a" opacity=".5"/>
-    <path d="M132 300 L150 336 L168 300 Z" fill="#fff" stroke="#3a2a1a" stroke-width="3"/>
-    <g class="mk-bow"><path d="M150 306 L128 294 L128 318 Z M150 306 L172 294 L172 318 Z" fill="#e23b4b" stroke="#3a2a1a" stroke-width="3"/><circle cx="150" cy="306" r="6" fill="#c42636" stroke="#3a2a1a" stroke-width="2.5"/>
-      <circle cx="136" cy="302" r="2" fill="#fff"/><circle cx="140" cy="312" r="2" fill="#fff"/><circle cx="162" cy="301" r="2" fill="#fff"/><circle cx="164" cy="313" r="2" fill="#fff"/></g>
-    <circle cx="150" cy="350" r="3.5" fill="#3a2a1a"/><circle cx="150" cy="366" r="3.5" fill="#3a2a1a"/>
-    <g class="mk-arm-l"><path d="M84 324 Q50 332 46 352" fill="none" stroke="#e6a634" stroke-width="15" stroke-linecap="round"/><circle cx="46" cy="356" r="12" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/></g>
-    <g class="mk-arm-r"><path d="M216 324 Q248 332 252 352" fill="none" stroke="#e6a634" stroke-width="18" stroke-linecap="round"/><circle cx="252" cy="356" r="12" fill="#f7d3b0" stroke="#3a2a1a" stroke-width="3"/>
-      <line x1="252" y1="356" x2="296" y2="300" stroke="#8a5a34" stroke-width="5" stroke-linecap="round"/><circle cx="296" cy="300" r="4" fill="#fff"/></g>
+    <path d="M62 380 Q56 316 150 298 Q244 316 238 380 Z" fill="url(#mk-tweed)" stroke="#2a1d10" stroke-width="4"/>
+    <path d="M126 300 L150 380 L174 300 Z" fill="url(#mk-check)" stroke="#2a1d10" stroke-width="2.5"/>
+    <path d="M126 300 L112 322 L134 330 L150 380 L104 380 Q96 330 126 300 Z M174 300 L188 322 L166 330 L150 380 L196 380 Q204 330 174 300 Z" fill="url(#mk-tweed)" stroke="#2a1d10" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M140 300 L150 312 L160 300 Z" fill="#2f6b3a" stroke="#1a3a20" stroke-width="2"/>
+    <path d="M144 312 L156 312 L160 360 L150 374 L140 360 Z" fill="#2f6b3a" stroke="#1a3a20" stroke-width="2"/>
+    <g fill="#c98a3a"><circle cx="148" cy="326" r="2"/><circle cx="153" cy="340" r="2"/><circle cx="147" cy="352" r="2"/></g>
+    <circle cx="186" cy="356" r="3.5" fill="#5a3a1a"/><circle cx="186" cy="372" r="3.5" fill="#5a3a1a"/>
+    <g class="mk-arm-l"><path d="M82 324 Q52 336 52 352" fill="none" stroke="#6b5230" stroke-width="20" stroke-linecap="round"/><ellipse cx="60" cy="336" rx="8" ry="10" fill="#4a3018"/>
+      <rect x="30" y="336" width="30" height="34" rx="4" fill="#fff" stroke="#2a1d10" stroke-width="3"/><path d="M30 344 Q18 346 20 356 Q22 364 30 362" fill="none" stroke="#2a1d10" stroke-width="3"/>
+      <text x="45" y="357" font-size="9" font-weight="700" text-anchor="middle" fill="#c42636" font-family="sans-serif">TEACH</text>
+      <circle cx="52" cy="356" r="11" fill="#f7d3b0" stroke="#2a1d10" stroke-width="3"/>
+      <path class="mk-steam" d="M40 330 Q36 322 42 316 Q48 310 44 302" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".7"/></g>
+    <g class="mk-arm-r"><path d="M218 324 Q248 336 250 352" fill="none" stroke="#6b5230" stroke-width="20" stroke-linecap="round"/><ellipse cx="240" cy="336" rx="8" ry="10" fill="#4a3018"/>
+      <rect x="232" y="314" width="44" height="58" rx="3" fill="#8a5a34" stroke="#2a1d10" stroke-width="3" transform="rotate(12 254 343)"/><rect x="238" y="322" width="32" height="44" fill="#fff" transform="rotate(12 254 343)"/>
+      <rect x="246" y="310" width="16" height="8" rx="2" fill="#b0b0b8" stroke="#2a1d10" stroke-width="2" transform="rotate(12 254 343)"/>
+      <g stroke="#9aa" stroke-width="1.5" transform="rotate(12 254 343)"><line x1="242" y1="330" x2="266" y2="330"/><line x1="242" y1="338" x2="266" y2="338"/><line x1="242" y1="346" x2="262" y2="346"/></g>
+      <circle cx="250" cy="356" r="11" fill="#f7d3b0" stroke="#2a1d10" stroke-width="3"/></g>
   </g>
   <rect x="140" y="268" width="20" height="32" fill="#f2c49c" stroke="#3a2a1a" stroke-width="3"/>
   <g class="mk-head">
@@ -2883,8 +2902,8 @@ function mikey2D(container) {
     if (talking && now - lastWordAt > 260) setMouth(["open", "wide", "closed", "oh", "open", "closed"][Math.floor(t * 9) % 6]);
     if (!talking) setMouth("closed");
     const pointing = now < pointUntil;
-    armR.setAttribute("transform", pointing ? `rotate(${-38 + Math.sin(t * 5) * 3} 196 318)` : `rotate(${Math.sin(t * 1.3) * 3} 196 318)`);
-    armL.setAttribute("transform", talking ? `rotate(${18 + Math.sin(t * 2.8) * 14} 104 318)` : "");
+    armR.setAttribute("transform", pointing ? `rotate(${-30 + Math.sin(t * 5) * 3} 218 324)` : `rotate(${Math.sin(t * 1.3) * 3} 218 324)`);
+    armL.setAttribute("transform", talking ? `rotate(${10 + Math.sin(t * 2.8) * 10} 82 324)` : "");
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -3060,8 +3079,8 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       const m = sen.trim().match(/^(.*?)[,\s]*\b(m+'?kay)([.!?]*)$/i);
       const body = m ? m[1] : sen.trim();
       const bits = body.split(/(?<=[,;:—])\s+/).filter((b) => b.trim());
-      bits.forEach((b, j) => out.push({ text: b.trim(), pause: j < bits.length - 1 ? 160 + Math.random() * 90 : m ? 140 : 380, lift: j === 0 ? 0.04 : 0 }));
-      if (m) out.push({ text: "mmm kay" + (m[3].includes("!") ? "!" : "?"), pause: 420, mkay: true });
+      bits.forEach((b, j) => out.push({ text: b.trim(), pause: j < bits.length - 1 ? 70 + Math.random() * 60 : m ? 90 : 220, lift: j === 0 ? 0.04 : 0 }));
+      if (m) out.push({ text: "mmm kay" + (m[3].includes("!") ? "!" : "?"), pause: 250, mkay: true });
     }
     return out;
   };
@@ -3077,7 +3096,7 @@ async function openVideo({ key, courseKey, topic, material, term }) {
       const u = new SpeechSynthesisUtterance(line);
       const v = speech.voice(); if (v) u.voice = v;
       const jitter = 1 + (Math.random() - 0.5) * 0.08;
-      u.rate = (ph.mkay ? 0.82 : 0.95) * rate * jitter;
+      u.rate = (ph.mkay ? 1.0 : 1.12) * rate * jitter;
       u.pitch = Math.max(0.5, Math.min(2, speech.pitch * (ph.mkay ? 0.9 : 1 + (ph.lift || 0) + (Math.random() - 0.5) * 0.06)));
       u.onboundary = (e) => { if (e.name === "word" || e.charLength) tch?.word?.(line.substr(e.charIndex, e.charLength || 6)); };
       // Some devices never report the end of speech; don't let the video get stuck.
