@@ -239,10 +239,23 @@ async function loadState() {
   mergeStats(state.stats, await store.get("stats"));
   state.deadlines = (d?.items || []).map(normalizeDeadline);
   state.deadlinesUpdatedAt = d?.updatedAt || null;
+  state.doneDeadlines = d?.done || {};
   mergeLessons(l);
   state.chats = local.get("chats") || {};
 }
-const saveDeadlines = () => { state.deadlinesUpdatedAt = new Date().toISOString(); return store.set("deadlines", { items: state.deadlines, updatedAt: state.deadlinesUpdatedAt }); };
+const saveDeadlines = () => { state.deadlinesUpdatedAt = new Date().toISOString(); return store.set("deadlines", { items: state.deadlines, updatedAt: state.deadlinesUpdatedAt, done: state.doneDeadlines || {} }); };
+// Assignments she has marked done. Remembered by Canvas id and by class + title, so re-importing never brings them back.
+const dlKeys = (d) => [d.id, `${d.courseKey || d.courseLabel || ""}|${String(d.title).toLowerCase().trim()}`].filter(Boolean);
+const dlDone = (d) => dlKeys(d).some((k) => state.doneDeadlines?.[k]);
+const openDeadlines = () => state.deadlines.filter((d) => !dlDone(d));
+function markDeadline(d, done) {
+  state.doneDeadlines ||= {};
+  for (const k of dlKeys(d)) { if (done) state.doneDeadlines[k] = new Date().toISOString(); else delete state.doneDeadlines[k]; }
+  saveDeadlines();
+  if (done) celebrate();
+  render();
+}
+const doneButton = (d) => h("button", { class: "btn quiet small done-btn", title: "Mark this assignment done", "aria-label": `Mark ${d.title} done`, onclick: () => markDeadline(d, true) }, "✓ Done");
 /* Saving without clobbering: Study Hub may be open in two places at once (the Claude app and
    a browser tab, or phone and computer). Each save first folds in what the other copy saved,
    so finishing a lesson in one place can't be erased by an older copy somewhere else. */
@@ -1483,7 +1496,7 @@ function pathMaterial(key) {
     return `- ${l.title} (${l.p.done ? "finished" : "in progress"}${pctRight != null ? `, ${pctRight}% right on first try` : ""}): ${l.objectives.slice(0, 300)}`;
   }).join("\n");
   const missed = done.flatMap((l) => l.p.missed || []).slice(-12).map((m) => `- ${m.concept}`).join("\n");
-  const soon = state.deadlines.filter((d) => d.courseKey === key && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 21 * 864e5)
+  const soon = openDeadlines().filter((d) => d.courseKey === key && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 21 * 864e5)
     .map((d) => `- ${d.kind === "quiz" ? "Quiz/test" : "Assignment"}: ${d.title} (due ${new Date(d.due).toLocaleDateString("en-US", { month: "short", day: "numeric" })})${d.covers ? ` covers: ${d.covers}` : ""}${d.description ? ` — ${String(d.description).slice(0, 300)}` : ""}`).join("\n");
   const weeks = readingWeeks(key).slice(0, 2).map((w) => {
     const n = state.weekNotes[w.key];
@@ -3246,7 +3259,7 @@ function dueChip(iso) {
 
 function thisWeek() {
   const end = Date.now() + 7 * 864e5;
-  return state.deadlines.filter((d) => { const t = new Date(d.due).getTime(); return t > Date.now() - 864e5 && t < end; });
+  return openDeadlines().filter((d) => { const t = new Date(d.due).getTime(); return t > Date.now() - 864e5 && t < end; });
 }
 
 function resumePanel() {
@@ -3271,7 +3284,7 @@ function homeView() {
   const showing = state.deadlines.length ? week : EXAMPLES;
   const labelOf = (d) => courseOf(d.courseKey)?.title || d.courseLabel || "Other";
   const counts = (key) => {
-    const n = state.deadlines.filter((d) => d.courseKey === key && new Date(d.due) > new Date()).length;
+    const n = openDeadlines().filter((d) => d.courseKey === key && new Date(d.due) > new Date()).length;
     const lessons = (LESSONS[key]?.length || 0) + state.lessons.filter((l) => l.courseKey === key).length;
     const mine = Object.values(state.progress).filter((p) => p.courseKey === key);
     const done = mine.filter((p) => p.done).length;
@@ -3303,9 +3316,19 @@ function homeView() {
             d.kind === "scholarship" ? h("button", { class: "btn small", onclick: () => go("scholarships", null, d.scholarshipId) }, "Work on it") :
             d.courseKey && !d.example ? (d.kind === "quiz"
               ? h("button", { class: "btn small", onclick: () => go("class", d.courseKey, "quiz-" + d.id) }, "Practice test")
-              : h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep")) : null);
-        })) : h("p", { class: "muted" }, "Nothing due in the next 7 days. 🎉"),
-        state.deadlines.length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${state.deadlines.length - week.length} more after this week.`) : null,
+              : h("button", { class: "btn small", onclick: () => { state.builder = { assignment: d }; go("class", d.courseKey, "build"); } }, "Prep")) : null,
+            !d.example ? doneButton(d) : null);
+        })) : h("p", { class: "muted" }, state.deadlines.length ? "Nothing left due in the next 7 days. 🎉" : "Nothing due in the next 7 days. 🎉"),
+        (() => {
+          const end = Date.now() + 7 * 864e5;
+          const doneWeek = state.deadlines.filter((d) => dlDone(d) && new Date(d.due).getTime() > Date.now() - 3 * 864e5 && new Date(d.due).getTime() < end);
+          return doneWeek.length ? h("details", { class: "done-list" }, h("summary", {}, `✓ ${doneWeek.length} done this week`),
+            h("ul", { class: "due" }, doneWeek.map((d) => h("li", { "data-course": d.courseKey || null, class: "is-done" },
+              h("span", { class: "day" }, h("b", {}, new Date(d.due).toLocaleDateString("en-US", { weekday: "short" }))),
+              h("div", {}, h("div", { class: "title" }, d.title), h("span", { class: "muted", style: "font-size:.85rem" }, labelOf(d))),
+              h("button", { class: "linkish", onclick: () => markDeadline(d, false) }, "Undo"))))) : null;
+        })(),
+        openDeadlines().length > week.length ? h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, `${openDeadlines().length - week.length} more after this week.`) : null,
         state.deadlinesUpdatedAt && Date.now() - new Date(state.deadlinesUpdatedAt) > 6 * 864e5
           ? h("p", { class: "note", style: "margin:0" }, `Your Canvas dates were last updated ${new Date(state.deadlinesUpdatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Re-import (below) so new assignments show up.`) : null),
     resumePanel(),
@@ -3385,7 +3408,7 @@ function weekNotesContext(courseKey) {
 async function summarizeWeek(courseKey, week, onProgress) {
   const course = courseOf(courseKey);
   const budget = Math.floor(60000 / week.list.length);
-  const due = state.deadlines.filter((d) => d.courseKey === courseKey && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 14 * 864e5)
+  const due = openDeadlines().filter((d) => d.courseKey === courseKey && new Date(d.due) > new Date() && new Date(d.due) - Date.now() < 14 * 864e5)
     .map((d) => `- ${d.title} (due ${new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })})`).join("\n");
   const prompt = `You are ${course.tutor}. A busy college student has these readings for "${week.module}" in ${course.title}. Read all of them and tell her what she actually needs to know, so she could discuss them in class, write about them, and answer quiz questions without rereading everything.
 
@@ -3521,7 +3544,7 @@ function classView() {
   const course = courseOf(state.course);
   const builtIn = LESSONS[state.course] || [];
   const mine = state.lessons.filter((l) => l.courseKey === state.course);
-  const upcoming = state.deadlines.filter((d) => d.courseKey === state.course && new Date(d.due) > new Date()).slice(0, 6);
+  const upcoming = openDeadlines().filter((d) => d.courseKey === state.course && new Date(d.due) > new Date()).slice(0, 6);
   const worksheets = state.worksheets.filter((w) => w.courseKey === state.course);
   if (!state.lessonId && !builtIn.length && (state.readings[state.course] || []).length) state.lessonId = "notes";
   const item = (id, label, sub, onclick) => h("button", {
@@ -3548,9 +3571,10 @@ function classView() {
     worksheets.length ? h("span", { class: "eyebrow" }, "Worksheets") : null,
     worksheets.map((w) => item("ws-" + w.id, w.title, w.assignment || "fill in with the tutor", () => go("class", state.course, "ws-" + w.id))),
     upcoming.length ? h("span", { class: "eyebrow" }, "Coming up") : null,
-    upcoming.map((d) => item((d.kind === "quiz" ? "quiz-" : "prep-") + d.id, d.title,
+    upcoming.map((d) => h("div", { class: "side-row" }, item((d.kind === "quiz" ? "quiz-" : "prep-") + d.id, d.title,
       `${d.kind === "quiz" ? "Quiz · " : ""}${new Date(d.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`,
-      () => { if (d.kind === "quiz") go("class", state.course, "quiz-" + d.id); else { state.builder = { assignment: d }; go("class", state.course, "build"); } })));
+      () => { if (d.kind === "quiz") go("class", state.course, "quiz-" + d.id); else { state.builder = { assignment: d }; go("class", state.course, "build"); } }),
+      h("button", { class: "side-done", title: "Mark done", "aria-label": `Mark ${d.title} done`, onclick: () => markDeadline(d, true) }, "✓"))));
 
   const stage = h("main", { class: "stage" });
   // Caught up on this class? Start the next lesson in the background (once per visit).
@@ -3645,7 +3669,8 @@ function builderView() {
 
   const wrap = h("div", { class: "lesson builder" },
     h("span", { class: "eyebrow" }, course.title),
-    h("h1", {}, a ? `Prep: ${a.title}` : reading ? reading.title : "Add from Canvas"),
+    h("div", { class: "row" }, h("h1", { style: "flex:1" }, a ? `Prep: ${a.title}` : reading ? reading.title : "Add from Canvas"),
+      a && a.id ? (dlDone(a) ? h("button", { class: "btn quiet small", onclick: () => markDeadline(a, false) }, "↩ Not done yet") : h("button", { class: "btn small", onclick: () => markDeadline(a, true) }, "✓ I turned this in")) : null),
     reading ? h("p", { class: "note good", style: "margin:0" }, `Pulled from Canvas${reading.module ? ` (${reading.module})` : ""} by Claude in Chrome. Press Build lesson to turn it into a short interactive lesson. `,
       reading.url ? h("a", { href: reading.url, target: "_blank", rel: "noopener" }, reading.kind === "link" ? "Open the original link ↗" : "Open the original ↗") : null) : null,
     h("p", { class: "muted", style: "margin:0" }, a

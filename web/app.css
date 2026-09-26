@@ -636,3 +636,10 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .vroom:has(.mikey)::before { display: none; }
 .mikey svg { overflow: hidden; }
 .section-video { display: flex; justify-content: flex-end; margin: -.3rem -.3rem 0 0; }
+/* Marking assignments done */
+.due li .done-btn { white-space: nowrap; }
+.done-list summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; font-size: .92rem; }
+.done-list li.is-done .title { text-decoration: line-through; color: var(--ink-soft); }
+.side-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem; }
+.side-done { border: 1px solid var(--rule); background: var(--surface); color: var(--good); border-radius: 99px; width: 28px; height: 28px; font-weight: 800; cursor: pointer; }
+.side-done:hover { background: var(--good-soft); }
