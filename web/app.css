@@ -643,3 +643,4 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .side-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .2rem; }
 .side-done { border: 1px solid var(--rule); background: var(--surface); color: var(--good); border-radius: 99px; width: 28px; height: 28px; font-weight: 800; cursor: pointer; }
 .side-done:hover { background: var(--good-soft); }
+.calc .calc-in { width: 10rem; }

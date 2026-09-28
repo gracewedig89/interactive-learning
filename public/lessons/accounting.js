@@ -335,4 +335,183 @@ export default [
       },
     ],
   },
+  {
+    id: "merch-inventory",
+    title: "6. Merchandising & inventory (Ch 4 & 5)",
+    blocks: [
+      {
+        type: "objectives",
+        text: "By the end of this lesson you should be able to explain how a merchandiser earns gross profit, read credit terms like 2/10, n/60 and figure the amount to pay, compute net sales, decide which costs belong in inventory, tell who owns goods in transit (FOB shipping point vs. FOB destination), compare FIFO, LIFO, weighted average and specific identification, and record a lower of cost or market (LCM) write-down.",
+      },
+      {
+        type: "text",
+        html: `<p>A <b>merchandiser</b> buys goods and resells them. Its income statement adds one big step a service company doesn't have: it subtracts what the goods cost before subtracting its other expenses.</p>
+<table class="ref"><thead><tr><th>Income statement line</th><th>How you get it</th></tr></thead><tbody>
+<tr><td>Net sales</td><td>Sales − Sales discounts − Sales returns and allowances</td></tr>
+<tr><td>− Cost of goods sold (COGS)</td><td>What the sold goods cost the company</td></tr>
+<tr><td>= <b>Gross profit</b></td><td>Net sales − COGS</td></tr>
+<tr><td>− Operating expenses</td><td>Salaries, rent, advertising, utilities…</td></tr>
+<tr><td>= <b>Net income</b></td><td>Gross profit − Expenses</td></tr>
+</tbody></table>`,
+      },
+      {
+        type: "definitions",
+        items: [
+          ["Merchandise inventory", "Goods a company owns and expects to sell to its customers. It's an asset until sold, then it becomes cost of goods sold."],
+          ["Cost of goods sold (COGS)", "The cost of the merchandise that was sold during the period. An expense."],
+          ["Gross profit", "Net sales minus cost of goods sold."],
+          ["Credit period", "How long a buyer can wait before the full payment is due."],
+          ["Discount period", "The window in which a cash discount for paying early is available."],
+          ["Sales discount", "The seller's name for a cash discount it gives buyers who pay early. It reduces net sales."],
+          ["Purchases discount", "The buyer's name for a cash discount it gets from a supplier for paying early. It reduces the cost of inventory."],
+          ["FOB shipping point", "Ownership passes to the buyer when the seller hands the goods to the carrier. The buyer pays the freight."],
+          ["FOB destination", "Ownership passes to the buyer when the goods arrive at the buyer's place of business. The seller pays the freight."],
+          ["Lower of cost or market (LCM)", "If inventory's market value drops below its recorded cost, write it down to the lower amount."],
+        ],
+      },
+      {
+        type: "text",
+        html: `<p><b>Reading credit terms.</b> <span class="mono">2/10, n/60</span> means: take a <b>2% discount</b> if you pay within <b>10 days</b>; otherwise the full (<b>n</b>et) amount is due in <b>60 days</b>.</p>
+<p>Amount to pay in the discount period = Invoice × (1 − discount %). Example: $5,000 × (1 − 0.02) = <b>$4,900</b>.</p>
+<p class="muted">If some goods were returned first, take the discount on what's left: ($8,400 − $400 returned) × 0.98.</p>`,
+      },
+      {
+        type: "calc",
+        title: "Practice: how much do you pay?",
+        intro: "Each invoice is paid within the discount period unless it says otherwise. Type the dollar amount.",
+        items: [
+          { q: "Invoice $5,000, terms 2/10, n/60.", answer: 4900, hint: "Take 2% off: $5,000 × 0.98.", why: "$5,000 × (1 − 0.02) = $4,900." },
+          { q: "Invoice $20,000, terms 1/15, n/90.", answer: 19800, hint: "1% off.", why: "$20,000 × 0.99 = $19,800." },
+          { q: "Invoice $75,000, terms 1/10, n/30.", answer: 74250, hint: "1% of $75,000 is $750.", why: "$75,000 − $750 = $74,250." },
+          { q: "Invoice $10,000, terms 3/15, n/45.", answer: 9700, hint: "3% off.", why: "$10,000 × 0.97 = $9,700." },
+          { q: "Invoice $8,400, terms 2/10, n/30. You return $400 of damaged goods, then pay within 10 days.", answer: 7840, hint: "Subtract the return first, then take 2% off what's left.", why: "($8,400 − $400) × 0.98 = $8,000 × 0.98 = $7,840." },
+          { q: "Invoice $6,000, terms 2/10, n/30, but you pay on day 25.", answer: 6000, hint: "Is day 25 inside the discount period?", why: "The 10-day discount window has passed, so you owe the full $6,000." },
+        ],
+      },
+      {
+        type: "classify",
+        title: "Who owns the goods while they're on the truck?",
+        categories: ["Buyer", "Seller"],
+        items: [
+          { label: "Goods in transit, shipped FOB shipping point", answer: "Buyer", why: "Ownership passed when the seller handed them to the carrier." },
+          { label: "Goods in transit, shipped FOB destination", answer: "Seller", why: "The buyer doesn't own them until they arrive." },
+          { label: "Who pays the freight under FOB shipping point?", answer: "Buyer", why: "The buyer owns the goods during shipping, so the buyer pays to ship them (it's added to inventory cost)." },
+          { label: "Who pays the freight under FOB destination?", answer: "Seller", why: "The seller still owns the goods on the way, so shipping is the seller's delivery expense." },
+        ],
+      },
+      {
+        type: "text",
+        html: `<p><b>Net sales</b> = Gross sales − Sales discounts − Sales returns and allowances.</p>
+<p class="muted">Watch for distractors: salaries, rent and advertising are operating expenses. They never go in net sales.</p>`,
+      },
+      {
+        type: "calc",
+        title: "Practice: net sales",
+        items: [
+          { q: "Sales $200,000; sales discounts $4,000; sales returns and allowances $16,000; sales salaries $10,000. What are net sales?", answer: 180000, hint: "Only discounts and returns come off sales. Salaries don't.", why: "$200,000 − $4,000 − $16,000 = $180,000. Salaries are an operating expense." },
+          { q: "Sales $350,000; sales discounts $7,000; sales returns and allowances $12,500; advertising $9,000. What are net sales?", answer: 330500, hint: "Advertising is an expense, not a sales reduction.", why: "$350,000 − $7,000 − $12,500 = $330,500." },
+          { q: "Net sales $180,000 and cost of goods sold $108,000. What is gross profit?", answer: 72000, hint: "Gross profit = Net sales − COGS.", why: "$180,000 − $108,000 = $72,000." },
+        ],
+      },
+      {
+        type: "classify",
+        title: "Inventory cost or expense?",
+        categories: ["Inventory cost", "Expense"],
+        items: [
+          { label: "The used car bought for resale ($14,000)", answer: "Inventory cost", why: "It's the merchandise itself." },
+          { label: "Transportation-in ($250), bought FOB shipping point", answer: "Inventory cost", why: "The buyer pays freight under FOB shipping point, and it's a cost to get the goods ready to sell." },
+          { label: "Import duties ($900)", answer: "Inventory cost", why: "A necessary cost of getting the goods in place." },
+          { label: "Insurance while the car was shipped ($300)", answer: "Inventory cost", why: "Part of getting the goods to you." },
+          { label: "Advertising ($150)", answer: "Expense", why: "Selling costs are expensed, not added to inventory." },
+          { label: "Sales staff salaries ($1,250)", answer: "Expense", why: "A selling expense." },
+          { label: "Trimming the shrubs out front ($180)", answer: "Expense", why: "A general operating cost, not part of the car's cost." },
+        ],
+      },
+      {
+        type: "calc",
+        title: "Practice: total it up",
+        items: [
+          { q: "Using the items above, what is the total cost recorded in inventory for the car?", answer: 15450, hint: "Add the car, transportation-in, import duties and shipping insurance.", why: "$14,000 + $250 + $900 + $300 = $15,450." },
+          { q: "And the total that gets expensed?", answer: 1580, hint: "Add advertising, sales salaries and shrub trimming.", why: "$150 + $1,250 + $180 = $1,580." },
+        ],
+      },
+      {
+        type: "text",
+        html: `<p><b>Inventory costing methods</b> decide which costs move to COGS when you sell.</p>
+<table class="ref"><thead><tr><th>Method</th><th>How it works</th><th>When costs are rising…</th></tr></thead><tbody>
+<tr><td>Specific identification (SI)</td><td>Tracks the actual cost of each item sold</td><td>Precisely matches each item's cost to its revenue</td></tr>
+<tr><td>FIFO (first-in, first-out)</td><td>Oldest costs go to COGS first</td><td>Lowest COGS, <b>highest net income</b></td></tr>
+<tr><td>LIFO (last-in, first-out)</td><td>Newest costs go to COGS first</td><td><b>Highest COGS</b>, lowest income and taxes; best matches current costs to revenue</td></tr>
+<tr><td>Weighted average (WA)</td><td>Each unit carries the average cost of all units available</td><td>In between</td></tr>
+</tbody></table>`,
+      },
+      {
+        type: "classify",
+        title: "Which method? (costs are rising)",
+        categories: ["FIFO", "LIFO", "Weighted average", "Specific identification"],
+        items: [
+          { label: "Highest cost of goods sold", answer: "LIFO", why: "LIFO sends the newest, most expensive costs to COGS." },
+          { label: "Highest net income", answer: "FIFO", why: "FIFO's COGS uses the older, cheaper costs, so profit is higher." },
+          { label: "Lowest tax expense", answer: "LIFO", why: "Highest COGS means lowest income, so the lowest taxes." },
+          { label: "Better matches current costs with revenues", answer: "LIFO", why: "The newest costs are matched against today's sales." },
+          { label: "Precisely matches each item's cost with the revenue it brings in", answer: "Specific identification", why: "It tracks the actual cost of each unit sold." },
+          { label: "Each unit sold carries the average cost of everything available", answer: "Weighted average", why: "That's the definition of weighted average." },
+        ],
+      },
+      {
+        type: "calc",
+        title: "Practice: FIFO vs. LIFO vs. weighted average",
+        intro: "Beginning inventory: 10 units at $5. Purchase: 10 units at $7. The store sells 12 units.",
+        items: [
+          { q: "Cost of goods sold under FIFO?", answer: 64, hint: "Sell the oldest first: all 10 at $5, then 2 at $7.", why: "(10 × $5) + (2 × $7) = $50 + $14 = $64." },
+          { q: "Cost of goods sold under LIFO?", answer: 80, hint: "Sell the newest first: 10 at $7, then 2 at $5.", why: "(10 × $7) + (2 × $5) = $70 + $10 = $80." },
+          { q: "Cost of goods sold under weighted average?", answer: 72, hint: "Average cost = total cost of all 20 units ÷ 20.", why: "Average = ($50 + $70) ÷ 20 = $6 per unit. 12 × $6 = $72." },
+          { q: "Ending inventory under FIFO (8 units left)?", answer: 56, hint: "FIFO leaves the newest units in inventory.", why: "8 units at $7 = $56. Check: $120 available − $64 COGS = $56." },
+        ],
+      },
+      {
+        type: "calc",
+        title: "Practice: income statement relations",
+        intro: "Sales − Cost of goods sold = Gross profit. Gross profit − Expenses = Net income.",
+        items: [
+          { q: "Company A: cost of goods sold $40,000, gross profit $35,000. What are sales?", answer: 75000, hint: "Sales = COGS + Gross profit.", why: "$40,000 + $35,000 = $75,000." },
+          { q: "Company A: gross profit $35,000, net income $13,000. What are expenses?", answer: 22000, hint: "Expenses = Gross profit − Net income.", why: "$35,000 − $13,000 = $22,000." },
+          { q: "Company B: sales $20,000, gross profit $11,500. What is cost of goods sold?", answer: 8500, hint: "COGS = Sales − Gross profit.", why: "$20,000 − $11,500 = $8,500." },
+          { q: "Company B: gross profit $11,500, expenses $6,000. What is net income?", answer: 5500, hint: "Net income = Gross profit − Expenses.", why: "$11,500 − $6,000 = $5,500." },
+          { q: "Company C: sales $90,000, cost of goods sold $30,000. What is gross profit?", answer: 60000, hint: "Sales − COGS.", why: "$90,000 − $30,000 = $60,000." },
+          { q: "Company C: gross profit $60,000, net income $21,000. What are expenses?", answer: 39000, hint: "Gross profit − Net income.", why: "$60,000 − $21,000 = $39,000." },
+        ],
+      },
+      {
+        type: "journalBuilder",
+        title: "Build the merchandising entries (perpetual inventory)",
+        accounts: ["Cash", "Accounts Receivable", "Merchandise Inventory", "Accounts Payable", "Sales", "Sales Discounts", "Sales Returns and Allowances", "Cost of Goods Sold", "Delivery Expense"],
+        rows: [
+          { transaction: "Buy $5,000 of merchandise on credit, terms 2/10, n/60.", entries: [{ account: "Merchandise Inventory", side: "debit", amount: 5000 }, { account: "Accounts Payable", side: "credit", amount: 5000 }] },
+          { transaction: "Pay $250 cash for freight on that purchase (FOB shipping point).", entries: [{ account: "Merchandise Inventory", side: "debit", amount: 250 }, { account: "Cash", side: "credit", amount: 250 }] },
+          { transaction: "Pay the $5,000 invoice within the discount period (2% discount).", entries: [{ account: "Accounts Payable", side: "debit", amount: 5000 }, { account: "Merchandise Inventory", side: "credit", amount: 100 }, { account: "Cash", side: "credit", amount: 4900 }] },
+          { transaction: "Sell merchandise on credit for $3,000. (Record the sale only.)", entries: [{ account: "Accounts Receivable", side: "debit", amount: 3000 }, { account: "Sales", side: "credit", amount: 3000 }] },
+          { transaction: "Record the cost of the goods you just sold: they cost $1,800.", entries: [{ account: "Cost of Goods Sold", side: "debit", amount: 1800 }, { account: "Merchandise Inventory", side: "credit", amount: 1800 }] },
+          { transaction: "Year-end: inventory recorded at $20,000 has a market value of $19,000 (lower of cost or market).", entries: [{ account: "Cost of Goods Sold", side: "debit", amount: 1000 }, { account: "Merchandise Inventory", side: "credit", amount: 1000 }] },
+        ],
+      },
+      {
+        type: "quiz",
+        items: [
+          { question: "Terms of 1/10, n/30 mean:", options: ["1% discount if paid in 30 days", "1% discount if paid within 10 days, otherwise full amount due in 30 days", "10% discount, due in 30 days", "Pay $1 per $10 within 30 days"], answerIndex: 1, explanation: "The first numbers are the discount % and its window; n/30 is when the full amount is due." },
+          { question: "A buyer pays freight on goods shipped FOB shipping point. The buyer records the freight as:", options: ["Delivery expense", "Part of Merchandise Inventory", "A sales discount", "A reduction of Accounts Payable"], answerIndex: 1, explanation: "Freight-in is a cost of getting the goods ready to sell, so it's added to inventory." },
+          { question: "When costs are rising, which method gives the highest net income?", options: ["LIFO", "Weighted average", "FIFO", "They're all the same"], answerIndex: 2, explanation: "FIFO charges the older, cheaper costs to COGS, so income is highest." },
+          { question: "Which item does NOT reduce gross sales when computing net sales?", options: ["Sales discounts", "Sales returns and allowances", "Sales salaries", "None of these"], answerIndex: 2, explanation: "Salaries are an operating expense and appear below gross profit." },
+          { question: "Inventory cost $20,000; market value $19,000. The LCM entry is:", options: ["Dr Merchandise Inventory 1,000; Cr Cost of Goods Sold 1,000", "Dr Cost of Goods Sold 1,000; Cr Merchandise Inventory 1,000", "Dr Loss 19,000; Cr Inventory 19,000", "No entry is needed"], answerIndex: 1, explanation: "Write inventory down by the $1,000 difference and charge it to COGS." },
+        ],
+      },
+      {
+        type: "practice",
+        prompts: [
+          "In your own words, what's the difference between FOB shipping point and FOB destination, and why does it matter at year-end?",
+          "Why would a company choose LIFO when prices are rising, even though it reports less profit?",
+        ],
+      },
+    ],
+  },
 ];

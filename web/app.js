@@ -950,6 +950,37 @@ const RENDER = {
 
   statements: (b) => statementBuilder(b),
   formulas: (b) => formulaSheet(b.course),
+
+  // Number problems: type the answer, check it, get a hint or the worked answer.
+  calc(b) {
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Work it out"),
+      b.intro ? h("p", { class: "muted", style: "margin:0" }, b.intro) : null,
+      b.items.map((it, n) => {
+        const id = track.add();
+        const inp = h("input", { inputmode: "decimal", class: "mono calc-in", placeholder: it.unit === "%" ? "%" : "$", "aria-label": `Answer to problem ${n + 1}` });
+        const slot = h("div");
+        const hint = it.hint ? h("p", { class: "note", hidden: true, style: "margin:0" }, "💡 ", it.hint) : null;
+        const check = (restore) => {
+          const v = num(inp.value);
+          if (v == null) return;
+          const ok = Math.abs(v - it.answer) < 0.51;
+          const shown = it.unit === "%" ? `${v}%` : money(v);
+          const miss = { concept: it.q, detail: `I answered ${shown}.` };
+          slot.replaceChildren(feedback(ok, ok ? it.why : "Check your math and try again.", `For this problem: "${it.q}" I got ${shown}. What am I doing wrong? Don't just give me the answer.`, miss),
+            !ok ? h("button", { class: "linkish", onclick: (e) => e.currentTarget.replaceWith(h("p", { class: "muted", style: "margin:.2rem 0 0;font-size:.9rem" }, "Answer: ", h("b", {}, it.unit === "%" ? `${it.answer}%` : money(it.answer)), ". ", it.why)) }, "Show the worked answer") : null);
+          if (!restore) { track.record(id, inp.value); note(`Problem "${it.q.slice(0, 80)}": answered ${shown} (${ok ? "right" : "wrong"}).`); }
+          track.attempt(id, ok, miss, restore);
+        };
+        inp.addEventListener("keydown", (e) => { if (e.key === "Enter") check(false); });
+        const saved = track.answer(id);
+        if (saved != null) { inp.value = saved; queueMicrotask(() => check(true)); }
+        return track.at(id, h("div", { class: "quiz calc" },
+          h("b", {}, `${n + 1}. `, it.q),
+          h("div", { class: "row" }, inp, h("button", { class: "btn small", onclick: () => check(false) }, "Check"),
+            hint ? h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint") : null),
+          hint, slot));
+      }));
+  },
 };
 
 /* ---------- SQL: explain mistakes, show steps, show data ---------- */
