@@ -393,4 +393,603 @@ export default [
       },
     ],
   },
+  {
+    "id": "build-queries",
+    "title": "5. Put the query together (test prep)",
+    "blocks": [
+      {
+        "type": "objectives",
+        "text": "Learn a repeatable recipe for turning any English question into a SQL query, clause by clause, so you're never staring at a blank box. You'll also practice the operators that show up on tests (IN, BETWEEN, LIKE, IS NULL, DISTINCT), know exactly when to use WHERE vs HAVING, and build queries that filter, group, join and sort all at once."
+      },
+      {
+        "type": "text",
+        "html": "<p><b>The 5-question recipe.</b> Ask these in order, and each answer becomes one clause:</p>\n<table class=\"ref\"><thead><tr><th>Ask yourself</th><th>Write</th></tr></thead><tbody>\n<tr><td>1. What do they want to <b>see</b>? (columns, or a count/total/average)</td><td><code>SELECT …</code></td></tr>\n<tr><td>2. Where does that data <b>live</b>? (one table, or two that share a key)</td><td><code>FROM …</code> (+ <code>JOIN … ON a.key = b.key</code>)</td></tr>\n<tr><td>3. Which <b>rows</b> count? (filters on plain columns)</td><td><code>WHERE …</code></td></tr>\n<tr><td>4. Do they say <b>\"each / per / by\"</b>? Any condition on a <b>total</b>?</td><td><code>GROUP BY …</code> then <code>HAVING …</code></td></tr>\n<tr><td>5. <b>Sorted</b>? <b>Top N</b>?</td><td><code>ORDER BY … ASC/DESC</code>, <code>LIMIT n</code> (SQL Server: <code>SELECT TOP n</code>)</td></tr>\n</tbody></table>\n<p><b>Clue words → SQL</b></p>\n<table class=\"ref\"><thead><tr><th>If the question says…</th><th>Use</th></tr></thead><tbody>\n<tr><td>\"how many\"</td><td><code>COUNT(*)</code></td></tr>\n<tr><td>\"how many different / unique\"</td><td><code>COUNT(DISTINCT col)</code></td></tr>\n<tr><td>\"total\", \"average\", \"highest\", \"lowest\"</td><td><code>SUM</code>, <code>AVG</code>, <code>MAX</code>, <code>MIN</code></td></tr>\n<tr><td>\"for each\", \"per\", \"by\"</td><td><code>GROUP BY</code> that column (and put it in SELECT too)</td></tr>\n<tr><td>\"only groups/categories with more than…\"</td><td><code>HAVING COUNT(*) &gt; …</code></td></tr>\n<tr><td>\"one of these\", \"either … or …\"</td><td><code>IN ('a', 'b')</code></td></tr>\n<tr><td>\"between X and Y\" (inclusive)</td><td><code>BETWEEN X AND Y</code></td></tr>\n<tr><td>\"starts with\", \"contains\", \"ends with\"</td><td><code>LIKE 'A%'</code>, <code>LIKE '%A%'</code>, <code>LIKE '%A'</code></td></tr>\n<tr><td>\"missing\", \"blank\", \"no value\"</td><td><code>IS NULL</code> (never <code>= NULL</code>)</td></tr>\n<tr><td>\"no duplicates\", \"list the different…\"</td><td><code>SELECT DISTINCT</code></td></tr>\n<tr><td>\"never\", \"without\", \"has no…\"</td><td><code>LEFT JOIN … WHERE right.key IS NULL</code></td></tr>\n<tr><td>\"highest first\", \"most recent first\"</td><td><code>ORDER BY … DESC</code></td></tr>\n</tbody></table>"
+      },
+      {
+        "type": "text",
+        "html": "<p><b>Worked example: build it one step at a time.</b> <i>\"Show the total quantity sold of each product, but only products with more than 3 sold, highest first.\"</i></p>\n<ol>\n<li><b>See?</b> The product name and a total quantity: <code>SELECT p.name, SUM(oi.quantity) AS total_sold</code></li>\n<li><b>Lives where?</b> Names are in products, quantities in order_items, linked by product_id: <code>FROM products p JOIN order_items oi ON p.product_id = oi.product_id</code></li>\n<li><b>Which rows?</b> All of them, so no WHERE.</li>\n<li><b>\"Each product\"</b> means <code>GROUP BY p.name</code>. <b>\"More than 3 sold\"</b> is a condition on a total, so <code>HAVING SUM(oi.quantity) &gt; 3</code></li>\n<li><b>Highest first:</b> <code>ORDER BY total_sold DESC</code></li>\n</ol>\n<pre class=\"ord-answer\">SELECT p.name, SUM(oi.quantity) AS total_sold\nFROM products p\nJOIN order_items oi ON p.product_id = oi.product_id\nGROUP BY p.name\nHAVING SUM(oi.quantity) &gt; 3\nORDER BY total_sold DESC;</pre>\n<p class=\"muted\">Tip: write and run it one clause at a time. Run the SELECT … FROM first, then add WHERE, then GROUP BY, and so on, checking the result each time.</p>"
+      },
+      {
+        "type": "schema"
+      },
+      {
+        "type": "order",
+        "title": "Practice: put the pieces in order",
+        "intro": "Tap the pieces in the order they go. Tap a placed piece to take it back.",
+        "items": [
+          {
+            "goal": "Show the name and price of Electronics products, most expensive first.",
+            "pieces": [
+              "SELECT name, price",
+              "FROM products",
+              "WHERE category = 'Electronics'",
+              "ORDER BY price DESC;"
+            ],
+            "explanation": "SELECT → FROM → WHERE → ORDER BY. ORDER BY always comes last."
+          },
+          {
+            "goal": "How many orders does each status have?",
+            "pieces": [
+              "SELECT status, COUNT(*)",
+              "FROM orders",
+              "GROUP BY status;"
+            ],
+            "explanation": "\"Each status\" means GROUP BY status, and status also goes in SELECT."
+          },
+          {
+            "goal": "Categories whose average price is over $20.",
+            "pieces": [
+              "SELECT category, AVG(price)",
+              "FROM products",
+              "GROUP BY category",
+              "HAVING AVG(price) > 20;"
+            ],
+            "explanation": "A condition on an average goes in HAVING, after GROUP BY."
+          },
+          {
+            "goal": "Each customer's first name with their order dates.",
+            "pieces": [
+              "SELECT c.first_name, o.order_date",
+              "FROM customers c",
+              "JOIN orders o",
+              "ON c.customer_id = o.customer_id;"
+            ],
+            "explanation": "JOIN the second table, then ON says which columns match."
+          },
+          {
+            "goal": "The different cities of Utah customers who joined in 2024.",
+            "pieces": [
+              "SELECT DISTINCT city",
+              "FROM customers",
+              "WHERE state = 'UT'",
+              "AND joined_on BETWEEN '2024-01-01' AND '2024-12-31';"
+            ],
+            "explanation": "DISTINCT goes right after SELECT; extra conditions chain with AND."
+          },
+          {
+            "goal": "Customers who have never placed an order.",
+            "pieces": [
+              "SELECT c.first_name, c.last_name",
+              "FROM customers c",
+              "LEFT JOIN orders o ON c.customer_id = o.customer_id",
+              "WHERE o.order_id IS NULL;"
+            ],
+            "explanation": "LEFT JOIN keeps every customer; the ones with no match have NULL order columns."
+          },
+          {
+            "goal": "Total quantity sold per product, only products with more than 3 sold, highest first.",
+            "pieces": [
+              "SELECT p.name, SUM(oi.quantity) AS total_sold",
+              "FROM products p",
+              "JOIN order_items oi ON p.product_id = oi.product_id",
+              "GROUP BY p.name",
+              "HAVING SUM(oi.quantity) > 3",
+              "ORDER BY total_sold DESC;"
+            ],
+            "explanation": "All six clauses in their fixed order: SELECT, FROM/JOIN, GROUP BY, HAVING, ORDER BY."
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "html": "<p><b>The operators, side by side</b></p>\n<table class=\"ref\"><thead><tr><th>Operator</th><th>Example</th><th>Watch out</th></tr></thead><tbody>\n<tr><td><code>IN</code></td><td><code>WHERE state IN ('UT','NV')</code></td><td>Same as <code>state = 'UT' OR state = 'NV'</code>. It's not a range</td></tr>\n<tr><td><code>BETWEEN</code></td><td><code>WHERE price BETWEEN 10 AND 50</code></td><td><b>Inclusive</b>: 10 and 50 both count. Smaller number first</td></tr>\n<tr><td><code>LIKE</code></td><td><code>WHERE name LIKE 'B%'</code></td><td><code>%</code> = any number of characters, <code>_</code> = exactly one character</td></tr>\n<tr><td><code>IS NULL</code></td><td><code>WHERE joined_on IS NULL</code></td><td><code>= NULL</code> never matches anything</td></tr>\n<tr><td><code>DISTINCT</code></td><td><code>SELECT DISTINCT category</code></td><td>Removes duplicate <b>result rows</b></td></tr>\n<tr><td><code>NOT</code></td><td><code>NOT IN</code>, <code>NOT BETWEEN</code>, <code>NOT LIKE</code>, <code>IS NOT NULL</code></td><td>Flips the condition</td></tr>\n<tr><td><code>WHERE</code> vs <code>HAVING</code></td><td>WHERE filters rows <b>before</b> grouping; HAVING filters groups <b>after</b></td><td>Aggregates (COUNT, SUM, AVG…) only go in HAVING, never WHERE</td></tr>\n</tbody></table>"
+      },
+      {
+        "type": "classify",
+        "title": "Which keyword do you need?",
+        "categories": [
+          "IN",
+          "BETWEEN",
+          "LIKE",
+          "IS NULL",
+          "DISTINCT",
+          "HAVING"
+        ],
+        "items": [
+          {
+            "label": "Customers in Utah, Nevada or Arizona",
+            "answer": "IN",
+            "why": "A list of exact values: state IN ('UT','NV','AZ')."
+          },
+          {
+            "label": "Products priced from $10 to $50",
+            "answer": "BETWEEN",
+            "why": "A range, inclusive on both ends."
+          },
+          {
+            "label": "Last names that start with 'B'",
+            "answer": "LIKE",
+            "why": "A pattern: LIKE 'B%'."
+          },
+          {
+            "label": "Customers with no join date",
+            "answer": "IS NULL",
+            "why": "Missing values need IS NULL."
+          },
+          {
+            "label": "A list of the different product categories (no repeats)",
+            "answer": "DISTINCT",
+            "why": "SELECT DISTINCT category."
+          },
+          {
+            "label": "Only statuses with more than 2 orders",
+            "answer": "HAVING",
+            "why": "A condition on COUNT(*), after GROUP BY."
+          },
+          {
+            "label": "Product names containing the word 'book'",
+            "answer": "LIKE",
+            "why": "LIKE '%book%' finds it anywhere in the name."
+          },
+          {
+            "label": "Orders placed from Sept 1 to Sept 10",
+            "answer": "BETWEEN",
+            "why": "A date range: BETWEEN '2024-09-01' AND '2024-09-10'."
+          }
+        ]
+      },
+      {
+        "type": "fillBlank",
+        "title": "Practice: finish the query",
+        "items": [
+          {
+            "prompt": "Average price of each category: SELECT category, ___(price) FROM products ___ category;",
+            "blanks": [
+              {
+                "answer": "AVG",
+                "choices": [
+                  "AVG",
+                  "COUNT",
+                  "DISTINCT"
+                ]
+              },
+              {
+                "answer": "GROUP BY",
+                "choices": [
+                  "ORDER BY",
+                  "GROUP BY",
+                  "HAVING"
+                ]
+              }
+            ],
+            "explanation": "AVG for average; GROUP BY to get one row per category."
+          },
+          {
+            "prompt": "Products from $10 to $50: SELECT * FROM products WHERE price ___ 10 AND 50;",
+            "blanks": [
+              {
+                "answer": "BETWEEN",
+                "choices": [
+                  "IN",
+                  "BETWEEN",
+                  "LIKE"
+                ]
+              }
+            ],
+            "explanation": "BETWEEN … AND … is an inclusive range."
+          },
+          {
+            "prompt": "Customers whose last name starts with B: SELECT * FROM customers WHERE last_name ___ 'B%';",
+            "blanks": [
+              {
+                "answer": "LIKE",
+                "choices": [
+                  "=",
+                  "LIKE",
+                  "IN"
+                ]
+              }
+            ],
+            "explanation": "Patterns with % need LIKE; = would look for the literal text 'B%'."
+          },
+          {
+            "prompt": "Statuses with more than 2 orders: SELECT status, COUNT(*) FROM orders GROUP BY status ___ COUNT(*) > 2;",
+            "blanks": [
+              {
+                "answer": "HAVING",
+                "choices": [
+                  "WHERE",
+                  "HAVING",
+                  "ORDER BY"
+                ]
+              }
+            ],
+            "explanation": "Conditions on an aggregate go in HAVING."
+          },
+          {
+            "prompt": "Customers with no join date: SELECT * FROM customers WHERE joined_on ___ NULL;",
+            "blanks": [
+              {
+                "answer": "IS",
+                "choices": [
+                  "=",
+                  "IS",
+                  "LIKE"
+                ]
+              }
+            ],
+            "explanation": "Always IS NULL, never = NULL."
+          },
+          {
+            "prompt": "Every customer, even ones with no orders: SELECT c.first_name, o.order_id FROM customers c ___ JOIN orders o ___ c.customer_id = o.customer_id;",
+            "blanks": [
+              {
+                "answer": "LEFT",
+                "choices": [
+                  "INNER",
+                  "LEFT",
+                  "CROSS"
+                ]
+              },
+              {
+                "answer": "ON",
+                "choices": [
+                  "WHERE",
+                  "ON",
+                  "HAVING"
+                ]
+              }
+            ],
+            "explanation": "LEFT keeps every customer; ON says how the tables match."
+          },
+          {
+            "prompt": "The list of different states (no repeats): SELECT ___ state FROM customers;",
+            "blanks": [
+              {
+                "answer": "DISTINCT",
+                "choices": [
+                  "DISTINCT",
+                  "UNIQUE",
+                  "GROUP"
+                ]
+              }
+            ],
+            "explanation": "DISTINCT removes duplicate rows from the result."
+          }
+        ]
+      },
+      {
+        "type": "sql",
+        "title": "Practice: build each query (they get harder as you go)",
+        "tasks": [
+          {
+            "prompt": "Show every product in the Supplies or Books category. (IN)",
+            "solution": "SELECT * FROM products WHERE category IN ('Supplies','Books');"
+          },
+          {
+            "prompt": "Show the name and price of products priced from 10 to 50, inclusive. (BETWEEN)",
+            "solution": "SELECT name, price FROM products WHERE price BETWEEN 10 AND 50;"
+          },
+          {
+            "prompt": "Show the names of products that contain the word 'book' anywhere in the name. (LIKE)",
+            "solution": "SELECT name FROM products WHERE name LIKE '%book%';"
+          },
+          {
+            "prompt": "List the different product categories, with no repeats. (DISTINCT)",
+            "solution": "SELECT DISTINCT category FROM products;"
+          },
+          {
+            "prompt": "Show each state and how many customers live there. (GROUP BY)",
+            "solution": "SELECT state, COUNT(*) FROM customers GROUP BY state;"
+          },
+          {
+            "prompt": "Same as above, but only states with more than 1 customer. (HAVING)",
+            "solution": "SELECT state, COUNT(*) FROM customers GROUP BY state HAVING COUNT(*) > 1;"
+          },
+          {
+            "prompt": "Show the 3 most expensive products (name and price), most expensive first. (ORDER BY + LIMIT; on SQL Server you'd write SELECT TOP 3)",
+            "solution": "SELECT name, price FROM products ORDER BY price DESC LIMIT 3;",
+            "ordered": true
+          },
+          {
+            "prompt": "Show products (name, price) that cost more than the average product price. (subquery)",
+            "solution": "SELECT name, price FROM products WHERE price > (SELECT AVG(price) FROM products);"
+          },
+          {
+            "prompt": "Show each customer's first name and how many orders they placed. (JOIN + GROUP BY)",
+            "solution": "SELECT c.first_name, COUNT(o.order_id) FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.first_name;"
+          },
+          {
+            "prompt": "Show the first and last name of customers who have never placed an order. (LEFT JOIN + IS NULL)",
+            "solution": "SELECT c.first_name, c.last_name FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_id IS NULL;"
+          },
+          {
+            "prompt": "Show each product name and its total quantity sold, only products with more than 3 sold, highest first. (the worked example)",
+            "solution": "SELECT p.name, SUM(oi.quantity) AS total_sold FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name HAVING SUM(oi.quantity) > 3 ORDER BY total_sold DESC;",
+            "ordered": true
+          },
+          {
+            "prompt": "Boss level: show each SHIPPED order's order_id and its revenue (quantity × price), highest revenue first. (two JOINs + WHERE + GROUP BY + ORDER BY)",
+            "solution": "SELECT oi.order_id, SUM(oi.quantity * p.price) AS revenue FROM order_items oi JOIN products p ON oi.product_id = p.product_id JOIN orders o ON o.order_id = oi.order_id WHERE o.status = 'shipped' GROUP BY oi.order_id ORDER BY revenue DESC;",
+            "ordered": true
+          }
+        ]
+      },
+      {
+        "type": "quiz",
+        "title": "Review: your quiz questions, plus a few more",
+        "items": [
+          {
+            "question": "The LEFT JOIN returns all records from the left table, and the matched records from the right table.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 0,
+            "explanation": "Unmatched right-side columns come back as NULL."
+          },
+          {
+            "question": "A CROSS JOIN between two tables returns only the records that have matching values in both tables.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 1,
+            "explanation": "That describes INNER JOIN. CROSS JOIN returns every combination (the Cartesian product)."
+          },
+          {
+            "question": "The GROUP BY statement is used to aggregate data and create summary rows based on specified column values.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 0,
+            "explanation": "One summary row per distinct value of the grouped column(s)."
+          },
+          {
+            "question": "The HAVING clause can be used in place of WHERE to filter rows before grouping.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 1,
+            "explanation": "HAVING filters groups AFTER grouping; WHERE filters rows BEFORE."
+          },
+          {
+            "question": "The ORDER BY clause is used to sort the result set in ascending or descending order.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 0,
+            "explanation": "ASC is the default; add DESC for biggest first."
+          },
+          {
+            "question": "What is the purpose of the INNER JOIN?",
+            "options": [
+              "Return all records from the left table, matched with records from the right table.",
+              "Return all records from both tables, even if there is no match.",
+              "Return records that have matching values in both tables.",
+              "Return the Cartesian product of two tables.",
+              "Return the unique records from both tables."
+            ],
+            "answerIndex": 2,
+            "explanation": "INNER = matches only. The others describe LEFT, FULL and CROSS joins."
+          },
+          {
+            "question": "Which SQL clause would you use to remove duplicate values from a query result?",
+            "options": [
+              "DISTINCT",
+              "ORDER BY",
+              "GROUP BY",
+              "JOIN",
+              "HAVING"
+            ],
+            "answerIndex": 0,
+            "explanation": "SELECT DISTINCT removes duplicate rows."
+          },
+          {
+            "question": "What does the COUNT(DISTINCT column) function return?",
+            "options": [
+              "The total number of rows in a table.",
+              "The total number of distinct rows in a table.",
+              "The total number of non-null rows in a column.",
+              "The total number of unique values in a column.",
+              "The total number of columns in a table."
+            ],
+            "answerIndex": 3,
+            "explanation": "Each different value counts once (like 100 companies vs 262,543 rows in your lab)."
+          },
+          {
+            "question": "Which of the following statements about the FULL OUTER JOIN is correct?",
+            "options": [
+              "Returns all records from the left table and matched records from the right.",
+              "Returns all records from the right table and matched records from the left.",
+              "Returns all records when there is a match in either table.",
+              "Returns the Cartesian product of two tables."
+            ],
+            "answerIndex": 2,
+            "explanation": "FULL keeps everything from both tables, with NULLs where there's no match."
+          },
+          {
+            "question": "Which of the following SQL statements would you use to filter aggregated data?",
+            "options": [
+              "HAVING",
+              "ORDER BY",
+              "WHERE",
+              "GROUP BY",
+              "DISTINCT"
+            ],
+            "answerIndex": 0,
+            "explanation": "Aggregates are filtered with HAVING."
+          },
+          {
+            "question": "Which SQL operator is used to check if a value exists within a list of values?",
+            "options": [
+              "BETWEEN",
+              "IN",
+              "LIKE",
+              "EXISTS",
+              "HAVING"
+            ],
+            "answerIndex": 1,
+            "explanation": "IN ('a','b','c') checks against a list."
+          },
+          {
+            "question": "Which SQL statement would you use to return all records where the Salary is between 50,000 and 100,000?",
+            "options": [
+              "SELECT * FROM Employees WHERE Salary IN (50000, 100000);",
+              "SELECT * FROM Employees WHERE Salary BETWEEN 50000 AND 100000;",
+              "SELECT * FROM Employees WHERE Salary NOT BETWEEN 50000 AND 100000;",
+              "SELECT * FROM Employees WHERE Salary = 50000 OR Salary = 100000;",
+              "SELECT * FROM Employees WHERE Salary LIKE '50000-100000';"
+            ],
+            "answerIndex": 1,
+            "explanation": "IN only matches exactly 50,000 or 100,000; BETWEEN covers the whole range."
+          },
+          {
+            "question": "Which SQL aggregate function would you use to calculate the total sum of a numeric column?",
+            "options": [
+              "AVG()",
+              "COUNT()",
+              "SUM()",
+              "MAX()",
+              "MIN()"
+            ],
+            "answerIndex": 2,
+            "explanation": "SUM adds the values."
+          },
+          {
+            "question": "What does the LIKE operator do?",
+            "options": [
+              "Selects values within a range.",
+              "Returns unique values.",
+              "Returns rows that do not match a specified pattern.",
+              "Returns rows that match a specified pattern.",
+              "Checks if a value is within a list of values."
+            ],
+            "answerIndex": 3,
+            "explanation": "LIKE uses % and _ wildcards. (NOT LIKE is the opposite.)"
+          },
+          {
+            "question": "Which of the following clauses can be used with aggregate functions?",
+            "options": [
+              "DISTINCT",
+              "WHERE",
+              "JOIN",
+              "HAVING",
+              "ORDER BY"
+            ],
+            "answerIndex": 3,
+            "explanation": "HAVING is built for conditions on aggregates."
+          },
+          {
+            "question": "Does WHERE price BETWEEN 10 AND 50 include a product that costs exactly $50?",
+            "options": [
+              "Yes, BETWEEN includes both ends",
+              "No, it stops at 49.99",
+              "Only if you add OR price = 50",
+              "Only in SQL Server"
+            ],
+            "answerIndex": 0,
+            "explanation": "BETWEEN is inclusive."
+          },
+          {
+            "question": "Which names match LIKE '_a%'?",
+            "options": [
+              "Names starting with 'a'",
+              "Names whose SECOND letter is 'a'",
+              "Names ending in 'a'",
+              "Names containing 'a' anywhere"
+            ],
+            "answerIndex": 1,
+            "explanation": "_ is exactly one character, then 'a', then % for anything after, so it matches names like Maya or Zachary."
+          },
+          {
+            "question": "In SQL Server, how do you get only the top 5 rows?",
+            "options": [
+              "SELECT TOP 5 … ORDER BY …",
+              "SELECT … LIMIT 5",
+              "SELECT FIRST 5 …",
+              "SELECT … WHERE ROWNUM <= 5"
+            ],
+            "answerIndex": 0,
+            "explanation": "SQL Server uses TOP; MySQL/SQLite use LIMIT."
+          },
+          {
+            "question": "What's wrong with: SELECT category, COUNT(*) FROM products WHERE COUNT(*) > 1 GROUP BY category;",
+            "options": [
+              "Nothing",
+              "COUNT(*) can't go in WHERE; use HAVING COUNT(*) > 1 after GROUP BY",
+              "GROUP BY must come before FROM",
+              "It needs DISTINCT"
+            ],
+            "answerIndex": 1,
+            "explanation": "Aggregates belong in HAVING."
+          },
+          {
+            "question": "You need the order count per customer name. Which column(s) must be in GROUP BY?",
+            "options": [
+              "order_id",
+              "The customer name column you SELECT next to COUNT",
+              "Nothing",
+              "Every column in the table"
+            ],
+            "answerIndex": 1,
+            "explanation": "Any non-aggregated column in SELECT must be in GROUP BY."
+          }
+        ]
+      },
+      {
+        "type": "definitions",
+        "items": [
+          [
+            "IN",
+            "Checks if a value matches any value in a list."
+          ],
+          [
+            "BETWEEN",
+            "Checks if a value falls in a range, including both ends."
+          ],
+          [
+            "LIKE",
+            "Matches a text pattern using % (any characters) and _ (one character)."
+          ],
+          [
+            "IS NULL",
+            "Finds missing values (= NULL never works)."
+          ],
+          [
+            "DISTINCT",
+            "Removes duplicate rows from the result."
+          ],
+          [
+            "Alias",
+            "A short nickname for a table or column (FROM customers c, SUM(x) AS total)."
+          ],
+          [
+            "TOP / LIMIT",
+            "Return only the first N rows: SELECT TOP n in SQL Server, LIMIT n in SQLite/MySQL."
+          ]
+        ]
+      },
+      {
+        "type": "practice",
+        "prompts": [
+          "Pick any question from this lesson and explain, step by step with the 5-question recipe, how you'd build the query.",
+          "Explain the difference between IN and BETWEEN with an example of when you'd use each."
+        ]
+      }
+    ]
+  },
 ];

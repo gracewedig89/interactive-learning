@@ -951,6 +951,39 @@ const RENDER = {
   statements: (b) => statementBuilder(b),
   formulas: (b) => formulaSheet(b.course),
 
+  // Put the pieces in order: tap code pieces to build the query.
+  order(b) {
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Put the query together"),
+      b.intro ? h("p", { class: "muted", style: "margin:0" }, b.intro) : null,
+      b.items.map((q, n) => {
+        const id = track.add();
+        const slot = h("div");
+        // Same scramble every time, so saved work lines up.
+        const pool = q.pieces.map((t, i) => ({ t, i, k: (i * 5 + 3) % (q.pieces.length + 2) })).sort((x, y) => x.k - y.k || x.i - y.i);
+        let picked = [];
+        const built = h("div", { class: "ord-built", "aria-live": "polite" });
+        const bank = h("div", { class: "ord-bank" });
+        const draw = () => {
+          built.replaceChildren(...(picked.length ? picked.map((pc, j) => h("button", { class: "ord-chip in", title: "Tap to take it back", onclick: () => { picked.splice(j, 1); draw(); } }, pc.t)) : [h("span", { class: "muted" }, "Tap the pieces below in the right order…")]));
+          bank.replaceChildren(...pool.filter((pc) => !picked.includes(pc)).map((pc) => h("button", { class: "ord-chip", onclick: () => { picked.push(pc); draw(); } }, pc.t)));
+        };
+        const check = (restore) => {
+          if (picked.length !== q.pieces.length) { if (!restore) slot.replaceChildren(h("p", { class: "muted", style: "margin:0" }, "Use every piece first.")); return; }
+          const got = picked.map((pc) => pc.t);
+          const ok = got.every((t, i) => t === q.pieces[i]);
+          const miss = { concept: `Build the query: ${q.goal}`, detail: `I put: ${got.join(" ")}` };
+          slot.replaceChildren(feedback(ok, ok ? q.explanation : "The order isn't right yet. Remember: SELECT → FROM → JOIN … ON → WHERE → GROUP BY → HAVING → ORDER BY.", `I'm building a query for "${q.goal}" and put the pieces in this order: ${got.join(" ")}. What's wrong with the order?`, miss),
+            !ok ? h("button", { class: "linkish", onclick: (e) => e.currentTarget.replaceWith(h("pre", { class: "ord-answer" }, q.pieces.join("\n"))) }, "Show the answer") : null);
+          if (!restore) { track.record(id, got); note(`Built query "${q.goal.slice(0, 60)}" (${ok ? "right" : "wrong"}).`); }
+          track.attempt(id, ok, miss, restore);
+        };
+        const saved = track.answer(id);
+        if (Array.isArray(saved)) { picked = saved.map((t) => pool.find((pc) => pc.t === t && true)).filter(Boolean); draw(); if (picked.length === q.pieces.length) queueMicrotask(() => check(true)); } else draw();
+        return track.at(id, h("div", { class: "quiz ord" }, h("b", {}, `${n + 1}. `, q.goal), built, bank,
+          h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => check(false) }, "Check"), h("button", { class: "linkish", onclick: () => { picked = []; slot.replaceChildren(); draw(); } }, "Start over")), slot));
+      }));
+  },
+
   // Select all that apply.
   multiSelect(b) {
     return h("section", { class: "block" }, h("h2", {}, b.title || "Select all that apply"),
