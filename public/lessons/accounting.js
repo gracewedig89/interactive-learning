@@ -514,4 +514,743 @@ export default [
       },
     ],
   },
+  {
+    "id": "internal-controls-cash",
+    "title": "7. Internal controls & cash",
+    "blocks": [
+      {
+        "type": "objectives",
+        "text": "By the end of this lesson you should be able to name the purposes and seven principles of internal control, explain the fraud triangle and the limits of internal control, list the basic controls for cash and the goals of good cash management, record cash shortages and overages with Cash Over and Short, read a bank statement from the bank's point of view, and prepare a bank reconciliation, including the journal entries it requires."
+      },
+      {
+        "type": "text",
+        "html": "<p><b>Internal control</b> is all the policies and procedures a company uses to keep its assets safe and its records accurate.</p>\n<table class=\"ref\"><thead><tr><th>The 4 purposes (why)</th><th>The 7 principles (how)</th></tr></thead><tbody>\n<tr><td>1. Protect assets</td><td>1. Establish responsibilities</td></tr>\n<tr><td>2. Ensure reliable accounting</td><td>2. Maintain adequate records</td></tr>\n<tr><td>3. Promote efficient operations</td><td>3. Insure assets and bond key employees</td></tr>\n<tr><td>4. Uphold company policies</td><td>4. Separate recordkeeping from custody of assets</td></tr>\n<tr><td></td><td>5. Divide responsibility for related transactions</td></tr>\n<tr><td></td><td>6. Apply technological controls</td></tr>\n<tr><td></td><td>7. Perform regular and independent reviews</td></tr>\n</tbody></table>\n<p class=\"muted\">Trap answers: \"increase revenues\" and \"reduce payables\" are business goals. \"Record assets at cost\" (cost principle) and \"match revenues with expenses\" (expense recognition) are accounting principles. None of these are internal control principles. Internal controls <b>reduce</b> the risk of loss; they can't eliminate it.</p>\n<p><b>Fraud triangle</b> (the \"triple threat\"): <b>opportunity</b>, <b>pressure</b> and <b>rationalization</b>. Fraud is intentional; errors and mistakes are not.</p>\n<p><b>Limits of internal control:</b> human error, human fraud, the cost-benefit principle (controls can't cost more than they save) and the control environment (management has to show it cares).</p>"
+      },
+      {
+        "type": "definitions",
+        "items": [
+          [
+            "Internal control system",
+            "The policies and procedures used to protect assets, ensure reliable accounting, promote efficient operations and uphold company policies."
+          ],
+          [
+            "Bonding",
+            "Insurance that protects the company if a key employee steals."
+          ],
+          [
+            "Separation of duties",
+            "Different people handle an asset and keep its records, so one person can't steal and hide it."
+          ],
+          [
+            "Fraud triangle",
+            "Opportunity + pressure + rationalization: the three factors behind fraud."
+          ],
+          [
+            "Liquidity",
+            "A company's ability to pay its current (short-term) liabilities."
+          ],
+          [
+            "Cash equivalents",
+            "Short-term, highly liquid investments that are treated like cash (for example, Treasury bills maturing within 3 months)."
+          ],
+          [
+            "Cash Over and Short",
+            "An income statement account for cash register differences. Debit balance (shortage) = expense; credit balance (overage) = revenue."
+          ],
+          [
+            "Bank reconciliation",
+            "A report explaining the difference between the checking account balance in the company's books and the balance on the bank statement."
+          ],
+          [
+            "Outstanding check",
+            "A check the company wrote that hasn't reached the bank yet."
+          ],
+          [
+            "Deposit in transit",
+            "A deposit the company made and recorded that isn't on the bank statement yet."
+          ],
+          [
+            "NSF check",
+            "A customer's check that bounced (not sufficient funds)."
+          ],
+          [
+            "Bank service charge",
+            "A fee the bank takes out of the account."
+          ]
+        ]
+      },
+      {
+        "type": "quiz",
+        "items": [
+          {
+            "question": "What is the purpose of internal controls?",
+            "options": [
+              "to guarantee that loss is eliminated",
+              "as a basis of employee performance reviews",
+              "to protect assets and ensure reliable accounting",
+              "to reduce outstanding customer balances"
+            ],
+            "answerIndex": 2,
+            "explanation": "Internal controls safeguard assets, ensure reliable accounting, promote efficient operations, and uphold company policies. They reduce the risk of loss but cannot eliminate it."
+          }
+        ]
+      },
+      {
+        "type": "multiSelect",
+        "title": "Practice: internal control and fraud (select all that apply)",
+        "items": [
+          {
+            "question": "Which of the following are principles of internal control?",
+            "options": [
+              "Perform regular and independent reviews.",
+              "Maintain adequate records.",
+              "Increase revenues.",
+              "Reduce vendor payables.",
+              "Establish responsibilities.",
+              "Divide responsibility for related transactions."
+            ],
+            "answers": [
+              "Perform regular and independent reviews.",
+              "Maintain adequate records.",
+              "Establish responsibilities.",
+              "Divide responsibility for related transactions."
+            ],
+            "explanation": "Increasing revenues and reducing payables are business goals, not internal control principles."
+          },
+          {
+            "question": "Identify the principles of internal control by selecting all the correct answers below.",
+            "options": [
+              "Separate recordkeeping from custody of assets.",
+              "Maintain adequate records.",
+              "Perform regular and independent reviews.",
+              "Apply technological controls.",
+              "Match revenues with expenses in the same accounting period.",
+              "Insure assets and bond key employees.",
+              "Record assets at cost.",
+              "Establish responsibilities."
+            ],
+            "answers": [
+              "Separate recordkeeping from custody of assets.",
+              "Maintain adequate records.",
+              "Perform regular and independent reviews.",
+              "Apply technological controls.",
+              "Insure assets and bond key employees.",
+              "Establish responsibilities."
+            ],
+            "explanation": "Matching revenues with expenses (expense recognition principle) and recording assets at cost (cost principle) are accounting principles, not internal control principles. The seventh internal control principle is dividing responsibility for related transactions."
+          },
+          {
+            "question": "Which of the following are correct regarding why management uses internal controls?",
+            "options": [
+              "promote efficient operations.",
+              "protect assets.",
+              "reduce vendor payables.",
+              "ensure reliable accounting.",
+              "increase revenues.",
+              "uphold company policies."
+            ],
+            "answers": [
+              "promote efficient operations.",
+              "protect assets.",
+              "ensure reliable accounting.",
+              "uphold company policies."
+            ],
+            "explanation": "The four purposes of internal control: protect assets, ensure reliable accounting, promote efficient operations, and uphold company policies."
+          },
+          {
+            "question": "The triple threat of fraud includes three factors, including:",
+            "options": [
+              "error",
+              "rationalization",
+              "pressure",
+              "opportunity",
+              "mistakes"
+            ],
+            "answers": [
+              "rationalization",
+              "pressure",
+              "opportunity"
+            ],
+            "explanation": "The fraud triangle is opportunity, pressure, and rationalization. Errors and mistakes are unintentional; fraud is intentional."
+          }
+        ]
+      },
+      {
+        "type": "matching",
+        "title": "Practice: limits of internal control",
+        "items": [
+          {
+            "question": "Internal control policies and procedures have limitations that arise from many elements. Match the limitation with its definition.",
+            "pairs": [
+              {
+                "term": "Human error",
+                "definition": "Can occur from carelessness, misjudgment or confusion"
+              },
+              {
+                "term": "Human fraud",
+                "definition": "Involves intent by people to defeat internal controls for personal gain"
+              },
+              {
+                "term": "Cost-benefit principle",
+                "definition": "Dictates that the costs of internal controls must not exceed their benefits"
+              },
+              {
+                "term": "Internal control environment",
+                "definition": "Management must convey commitment to internal control policies and procedures"
+              }
+            ],
+            "explanation": "Internal controls are limited by human error, human fraud, cost-benefit tradeoffs, and the tone set by management."
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "html": "<p><b>Controlling cash.</b> Cash is the easiest asset to steal, so three basic rules apply:</p>\n<ol><li><b>Separate</b> handling cash from recording cash.</li><li><b>Deposit</b> cash receipts promptly (usually daily) in a bank.</li><li><b>Pay</b> by check or electronic funds transfer (EFT), not with cash.</li></ol>\n<p><b>Liquidity</b> is the ability to pay <b>current</b> liabilities. Cash is the most liquid asset.</p>\n<p><b>Good cash management:</b> plan cash receipts to meet cash payments when due, keep only the <b>minimum</b> cash needed to operate (idle cash earns nothing), collect receivables quickly, and pay liabilities when they're due (not early).</p>"
+      },
+      {
+        "type": "multiSelect",
+        "title": "Practice: cash controls and cash management",
+        "items": [
+          {
+            "question": "Identify the basic internal control guidelines which should be in place to protect a business's cash.",
+            "options": [
+              "Cash receipts are promptly deposited in a bank.",
+              "Cash payments are made by check.",
+              "Handling cash is separate from recordkeeping of cash.",
+              "Bills should be paid immediately.",
+              "Excess cash should be left in the bank to maintain liquidity."
+            ],
+            "answers": [
+              "Cash receipts are promptly deposited in a bank.",
+              "Cash payments are made by check.",
+              "Handling cash is separate from recordkeeping of cash."
+            ],
+            "explanation": "The three basic cash control guidelines: separate handling cash from recordkeeping, deposit receipts promptly, and make payments by check or EFT."
+          },
+          {
+            "question": "Identify which of the items below are goals of good cash management.",
+            "options": [
+              "Pay all bills immediately when received.",
+              "Keep a minimum level of cash necessary to operate.",
+              "Keep a maximum level of cash available to pay for emergencies that develop",
+              "Plan cash receipts to meet cash payments when due."
+            ],
+            "answers": [
+              "Keep a minimum level of cash necessary to operate.",
+              "Plan cash receipts to meet cash payments when due."
+            ],
+            "explanation": "Good cash management plans receipts to cover payments and keeps only the minimum cash needed; idle cash earns nothing."
+          },
+          {
+            "question": "Which of the statements below describe effective cash management strategies?",
+            "options": [
+              "Encourage quick payment of liabilities.",
+              "Plan cash receipts to meet cash payments when due.",
+              "Keep a minimum level of cash necessary to operate.",
+              "Excess cash should be kept on hand to pay bills.",
+              "Encourage quick collection of receivables."
+            ],
+            "answers": [
+              "Plan cash receipts to meet cash payments when due.",
+              "Keep a minimum level of cash necessary to operate.",
+              "Encourage quick collection of receivables."
+            ],
+            "explanation": "Collect receivables early, delay paying liabilities until due, and invest excess cash rather than holding it."
+          }
+        ]
+      },
+      {
+        "type": "quiz",
+        "items": [
+          {
+            "question": "A good internal control to protect cash is to make cash payments using",
+            "options": [
+              "cash",
+              "checks",
+              "petty cash",
+              "U.S. Treasury bills"
+            ],
+            "answerIndex": 1,
+            "explanation": "Checks (or EFT) create a documented record and require proper authorization."
+          },
+          {
+            "question": "Which statement below explains why liquid assets are needed in a business?",
+            "options": [
+              "Liquid assets are easier to protect and control.",
+              "Liquid assets are purchased because they take longer to mature.",
+              "The maturity value of liquid assets is sensitive to interest rate changes.",
+              "Liquid assets must be available to pay current liabilities."
+            ],
+            "answerIndex": 3,
+            "explanation": "Liquid assets such as cash can be used right away to pay obligations as they come due."
+          }
+        ]
+      },
+      {
+        "type": "fillBlank",
+        "title": "Practice: fill in the blank",
+        "items": [
+          {
+            "prompt": "Liquidity refers to a company's ability to pay for its ___ liabilities.",
+            "blanks": [
+              {
+                "answer": "current",
+                "acceptable": [
+                  "current",
+                  "short-term"
+                ]
+              }
+            ],
+            "explanation": "Liquidity is a company's ability to pay its current (near-term) obligations."
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "html": "<p><b>Cash Over and Short.</b> When the cash in the register doesn't match the sales recorded, the difference goes to <b>Cash Over and Short</b>, an income statement account.</p>\n<table class=\"ref\"><thead><tr><th>Situation</th><th>Entry</th></tr></thead><tbody>\n<tr><td><b>Shortage:</b> register has $100, sales recorded $102</td><td>Dr Cash 100 · Dr Cash Over and Short 2 · Cr Sales 102</td></tr>\n<tr><td><b>Overage:</b> register has $553, sales recorded $550</td><td>Dr Cash 553 · Cr Cash Over and Short 3 · Cr Sales 550</td></tr>\n</tbody></table>\n<p class=\"muted\">Cash is always debited for what's actually in the drawer, and Sales is always credited for what was recorded. Cash Over and Short makes up the difference: a debit for a shortage, which acts like an expense, or a credit for an overage, which acts like revenue.</p>"
+      },
+      {
+        "type": "multiSelect",
+        "title": "Practice: Cash Over and Short",
+        "items": [
+          {
+            "question": "Which of the answers below correctly describe the Cash Over and Short account?",
+            "options": [
+              "It records the effects of cash overages and cash shortages.",
+              "A debit balance reflects an expense.",
+              "It is an income statement account.",
+              "It is an asset account.",
+              "A debit balance reflects a revenue."
+            ],
+            "answers": [
+              "It records the effects of cash overages and cash shortages.",
+              "A debit balance reflects an expense.",
+              "It is an income statement account."
+            ],
+            "explanation": "Cash Over and Short is an income statement account. A debit balance (net shortage) is an expense; a credit balance (net overage) is revenue."
+          }
+        ]
+      },
+      {
+        "type": "quiz",
+        "items": [
+          {
+            "question": "The cash in a cash register equaled $100, but the record of cash receipts/sales equaled $102. Which entry is correct to record cash sales and the shortage?",
+            "options": [
+              "debit Cash $102 and credit Sales $102.",
+              "debit Cash $100; debit Cash Over and Short $2; and credit Sales $102.",
+              "debit Cash $102; credit Cash Over and Short $2; and credit Sales $100.",
+              "debit Sales $100; credit Cash Over and Short $2; and credit Cash $102."
+            ],
+            "answerIndex": 1,
+            "explanation": "Debit Cash for the actual $100 on hand, credit Sales for the recorded $102, and debit the $2 shortage to Cash Over and Short (an expense)."
+          }
+        ]
+      },
+      {
+        "type": "journalBuilder",
+        "title": "Build the Cash Over and Short entries",
+        "accounts": [
+          "Cash",
+          "Sales",
+          "Cash Over and Short",
+          "Accounts Receivable",
+          "Miscellaneous Expense"
+        ],
+        "rows": [
+          {
+            "transaction": "The register has $100 cash, but recorded cash sales are $102.",
+            "entries": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 100
+              },
+              {
+                "account": "Cash Over and Short",
+                "side": "debit",
+                "amount": 2
+              },
+              {
+                "account": "Sales",
+                "side": "credit",
+                "amount": 102
+              }
+            ]
+          },
+          {
+            "transaction": "The register has $553 cash, but recorded cash sales are $550.",
+            "entries": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 553
+              },
+              {
+                "account": "Cash Over and Short",
+                "side": "credit",
+                "amount": 3
+              },
+              {
+                "account": "Sales",
+                "side": "credit",
+                "amount": 550
+              }
+            ]
+          },
+          {
+            "transaction": "The register has $495 cash, but recorded cash sales are $500.",
+            "entries": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 495
+              },
+              {
+                "account": "Cash Over and Short",
+                "side": "debit",
+                "amount": 5
+              },
+              {
+                "account": "Sales",
+                "side": "credit",
+                "amount": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "html": "<p><b>The bank statement</b> is the <b>bank's</b> record of your account. To the bank, your account is a <b>liability</b> (money it owes you), so on the statement your <b>deposits are credits</b> (increases) and your <b>withdrawals are debits</b> (decreases). It shows the beginning balance, deposits and other increases (like interest and notes the bank collected for you), checks and other decreases (like NSF checks and service charges), and the ending balance. Checks that haven't cleared yet <b>don't</b> appear.</p>\n<p><b>Bank reconciliation:</b> explain every difference between the bank statement and your Cash account until both <b>adjusted</b> balances are equal.</p>\n<table class=\"ref\"><thead><tr><th>Bank side (the bank doesn't know yet)</th><th>Book side (you don't know yet)</th></tr></thead><tbody>\n<tr><td><b>+</b> Deposits in transit</td><td><b>+</b> Interest earned, notes collected by the bank</td></tr>\n<tr><td><b>−</b> Outstanding checks</td><td><b>−</b> NSF checks, bank service charges</td></tr>\n<tr><td>± Bank errors</td><td>± Book errors (like a check recorded for the wrong amount)</td></tr>\n<tr><td class=\"muted\">No journal entries (the bank fixes these when they clear)</td><td><b>Every book-side item needs a journal entry</b></td></tr>\n</tbody></table>\n<p>Adjusted bank balance <b>must equal</b> adjusted book balance. If they don't match, there's still an error somewhere.</p>"
+      },
+      {
+        "type": "quiz",
+        "items": [
+          {
+            "question": "Determine which of the statements below is correct regarding information reflected on a monthly bank statement.",
+            "options": [
+              "Deposits that the company makes will be listed as debits to the bank account on the bank statement.",
+              "The information on the bank statement reflects the customer's records.",
+              "The information on the bank statement reflects the bank's records of the depositor's account.",
+              "Withdrawals by the company will be listed as increases to the bank account on the bank statement."
+            ],
+            "answerIndex": 2,
+            "explanation": "To the bank, a depositor's account is a liability, so deposits are credits (increases) and withdrawals are debits (decreases)."
+          },
+          {
+            "question": "Review the items below and determine which would cause an increase in the monthly bank statement balance.",
+            "options": [
+              "Cash deposits made by the account owner",
+              "A customer's uncollectible check",
+              "Service fees charged by the bank",
+              "Checks written during the month"
+            ],
+            "answerIndex": 0,
+            "explanation": "NSF checks, service fees, and checks written all decrease the balance."
+          }
+        ]
+      },
+      {
+        "type": "multiSelect",
+        "title": "Practice: bank statements and reconciliations (select all that apply)",
+        "items": [
+          {
+            "question": "Determine which of the items below would show up on a monthly bank statement.",
+            "options": [
+              "Beginning period balance in the depositor's account",
+              "Checks that the company has written, but have not cleared the bank yet",
+              "Withdrawals and other decreases to the account during the period",
+              "Deposits and other increases to the depositor's account during the period",
+              "Ending period balance in the account",
+              "Withdrawals and other increases to the account during the period"
+            ],
+            "answers": [
+              "Beginning period balance in the depositor's account",
+              "Withdrawals and other decreases to the account during the period",
+              "Deposits and other increases to the depositor's account during the period",
+              "Ending period balance in the account"
+            ],
+            "explanation": "Uncleared (outstanding) checks have not reached the bank yet, and withdrawals decrease the account."
+          },
+          {
+            "question": "Which items are included in the deposits column of a bank statement and result in an increase in the account balance?",
+            "options": [
+              "Deposits made during the month",
+              "Interest paid by the bank on the bank account balance",
+              "Checks written by the account owner",
+              "A note collected by the bank on behalf of the account owner",
+              "A returned uncollectible customer check"
+            ],
+            "answers": [
+              "Deposits made during the month",
+              "Interest paid by the bank on the bank account balance",
+              "A note collected by the bank on behalf of the account owner"
+            ],
+            "explanation": "Checks written and returned NSF checks decrease the account balance."
+          },
+          {
+            "question": "Determine the statements below that are true regarding why a bank reconciliation is used.",
+            "options": [
+              "Timing differences between the bank statement and the depositor's records are reflected in the bank reconciliation.",
+              "The Cash account balance in the general ledger is accurate, but the bank statement balance is not.",
+              "We must reconcile the balance of the bank's records and the Cash account in the general ledger and explain or account for any differences in the two.",
+              "The bank reconciliation is useful in proving the accuracy of the Cash account in the general ledger."
+            ],
+            "answers": [
+              "Timing differences between the bank statement and the depositor's records are reflected in the bank reconciliation.",
+              "We must reconcile the balance of the bank's records and the Cash account in the general ledger and explain or account for any differences in the two.",
+              "The bank reconciliation is useful in proving the accuracy of the Cash account in the general ledger."
+            ],
+            "explanation": "Neither balance is assumed correct; the reconciliation identifies errors and timing differences on both sides."
+          }
+        ]
+      },
+      {
+        "type": "fillBlank",
+        "title": "Practice: fill in the blanks",
+        "items": [
+          {
+            "prompt": "A bank reconciliation is a report explaining any differences between the ___ account balance according to the depositor's records and the balance reported on the ___ statement.",
+            "blanks": [
+              {
+                "answer": "checking",
+                "choices": [
+                  "checking",
+                  "subsidiary",
+                  "sales"
+                ]
+              },
+              {
+                "answer": "bank",
+                "choices": [
+                  "income",
+                  "financial",
+                  "bank"
+                ]
+              }
+            ],
+            "explanation": "A bank reconciliation compares the depositor's checking account records to the bank statement."
+          }
+        ]
+      },
+      {
+        "type": "matching",
+        "title": "Practice: why the balances differ",
+        "items": [
+          {
+            "question": "Identify the factors that cause the bank statement balance to differ from the depositor's book balance by matching each to its definition.",
+            "pairs": [
+              {
+                "term": "Outstanding check",
+                "definition": "A check written by the depositor that has not yet been received by the bank for payment"
+              },
+              {
+                "term": "Deposit in transit",
+                "definition": "Deposit made and recorded by the depositor, but not yet recorded on the bank statement"
+              },
+              {
+                "term": "NSF check",
+                "definition": "A check written by a customer who does not have enough money in his account to cover the check"
+              },
+              {
+                "term": "Bank charges",
+                "definition": "Service fees charged by the bank"
+              }
+            ],
+            "explanation": "Outstanding checks and deposits in transit adjust the bank balance; NSF checks and bank charges adjust the book balance."
+          }
+        ]
+      },
+      {
+        "type": "classify",
+        "title": "Where does it go on the reconciliation?",
+        "categories": [
+          "Bank side: add",
+          "Bank side: subtract",
+          "Book side: add",
+          "Book side: subtract"
+        ],
+        "items": [
+          {
+            "label": "Deposit in transit",
+            "answer": "Bank side: add",
+            "why": "You recorded it; the bank hasn't yet, so add it to the bank balance."
+          },
+          {
+            "label": "Outstanding check",
+            "answer": "Bank side: subtract",
+            "why": "You already subtracted it; the bank hasn't paid it yet."
+          },
+          {
+            "label": "Interest earned on the account",
+            "answer": "Book side: add",
+            "why": "The bank added it; you find out from the statement."
+          },
+          {
+            "label": "Note receivable collected by the bank for you",
+            "answer": "Book side: add",
+            "why": "The bank collected cash for you that isn't in your books yet."
+          },
+          {
+            "label": "Customer's NSF (bounced) check",
+            "answer": "Book side: subtract",
+            "why": "You recorded it as cash, but it bounced, so the cash isn't really there."
+          },
+          {
+            "label": "Bank service charge",
+            "answer": "Book side: subtract",
+            "why": "The bank took the fee out; you haven't recorded it yet."
+          }
+        ]
+      },
+      {
+        "type": "calc",
+        "title": "Practice: prepare a bank reconciliation",
+        "intro": "Bank statement balance $8,450. Book (Cash account) balance $8,820. Deposit in transit $1,200. Outstanding checks $950. Bank service charge $20. Customer NSF check $300. Interest earned $15. Note collected by the bank $185.",
+        "items": [
+          {
+            "q": "What is the adjusted BANK balance?",
+            "answer": 8700,
+            "hint": "Bank balance + deposits in transit − outstanding checks.",
+            "why": "$8,450 + $1,200 − $950 = $8,700."
+          },
+          {
+            "q": "What is the adjusted BOOK balance?",
+            "answer": 8700,
+            "hint": "Book balance + interest + note collected − service charge − NSF check.",
+            "why": "$8,820 + $15 + $185 − $20 − $300 = $8,700. It matches the bank side, so cash is reconciled."
+          },
+          {
+            "q": "By how much does the Cash account change after you record all the book-side entries?",
+            "answer": -120,
+            "hint": "Adjusted book balance − original book balance.",
+            "why": "$8,700 − $8,820 = −$120 (a $120 decrease)."
+          },
+          {
+            "q": "A register holds $495 but recorded sales are $500. What amount is debited to Cash Over and Short?",
+            "answer": 5,
+            "hint": "Recorded sales − cash actually in the drawer.",
+            "why": "$500 − $495 = $5 shortage (a debit, acting like an expense)."
+          }
+        ]
+      },
+      {
+        "type": "journalBuilder",
+        "title": "Record the book-side reconciliation entries",
+        "accounts": [
+          "Cash",
+          "Accounts Receivable",
+          "Notes Receivable",
+          "Interest Revenue",
+          "Bank Service Charge Expense"
+        ],
+        "rows": [
+          {
+            "transaction": "Record the $300 customer check that came back NSF.",
+            "entries": [
+              {
+                "account": "Accounts Receivable",
+                "side": "debit",
+                "amount": 300
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 300
+              }
+            ]
+          },
+          {
+            "transaction": "Record the $20 bank service charge.",
+            "entries": [
+              {
+                "account": "Bank Service Charge Expense",
+                "side": "debit",
+                "amount": 20
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 20
+              }
+            ]
+          },
+          {
+            "transaction": "Record the $15 interest the bank paid on the account.",
+            "entries": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 15
+              },
+              {
+                "account": "Interest Revenue",
+                "side": "credit",
+                "amount": 15
+              }
+            ]
+          },
+          {
+            "transaction": "Record the $185 note receivable the bank collected for you.",
+            "entries": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 185
+              },
+              {
+                "account": "Notes Receivable",
+                "side": "credit",
+                "amount": 185
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "quiz",
+        "items": [
+          {
+            "question": "Select the items below that would cause the bank statement balance to differ from the depositor's book balance.",
+            "options": [
+              "NSF check, Outstanding checks, Supplies expenses",
+              "Bank Service charges, Deposit in transit, Cleared checks",
+              "NSF check, Deposit in transit, interest paid by bank",
+              "Cleared checks, Bank service charge, NSF check"
+            ],
+            "answerIndex": 2,
+            "explanation": "Cleared checks are already recorded by both sides, and supplies expense is unrelated to the bank reconciliation."
+          },
+          {
+            "question": "Determine which of the statements below is true regarding the adjusted bank balance and the adjusted book balance on a bank reconciliation.",
+            "options": [
+              "The adjusted balance per books must equal the cash balance printed on the bank statement.",
+              "The adjusted bank balance must equal the adjusted cash balance per books.",
+              "The adjusted book balance will rarely equal the adjusted bank balance.",
+              "The cash balance on the bank statement must equal the cash balance in the general ledger before the bank reconciliation."
+            ],
+            "answerIndex": 1,
+            "explanation": "After all adjustments, both balances must match; otherwise an error still exists."
+          },
+          {
+            "question": "The adjusted book balance and the adjusted bank balance must equal each other on a bank reconciliation; otherwise, the cash account is not reconciled.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answerIndex": 0,
+            "explanation": "Matching adjusted balances is what it means for cash to be reconciled."
+          }
+        ]
+      },
+      {
+        "type": "practice",
+        "prompts": [
+          "Explain the fraud triangle in your own words, and give an example of a control that removes the 'opportunity' side.",
+          "Why do only book-side items on a bank reconciliation need journal entries?"
+        ]
+      }
+    ]
+  },
 ];

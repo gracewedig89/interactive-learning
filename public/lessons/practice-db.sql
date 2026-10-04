@@ -24,3 +24,28 @@ CREATE TABLE order_items (
   quantity   INTEGER NOT NULL,
   PRIMARY KEY (order_id, product_id)
 );
+CREATE TABLE CompanyInformation (
+  TickerSymbol TEXT PRIMARY KEY,
+  CompanyName  TEXT,
+  Industry     TEXT,
+  City         TEXT,
+  State        TEXT,
+  PhoneNumber  TEXT
+);
+CREATE TABLE StockData (
+  TickerSymbol TEXT,
+  TradeDate    DATE,
+  ST_Close     REAL,
+  Volume       INTEGER,
+  PRIMARY KEY (TickerSymbol, TradeDate)
+);
+CREATE TABLE Calendar (
+  ActualDate DATE PRIMARY KEY,
+  MonthName  TEXT,
+  YearNumber INTEGER,
+  DayOfWeek  TEXT,
+  DayType    TEXT
+);
+CREATE TABLE Toys (ToyID INTEGER, ToyName TEXT);
+CREATE TABLE Colors (ColorID INTEGER, Shade TEXT);
+CREATE TABLE JimmyPage ([Year] INTEGER, Quarter INTEGER, Amount REAL);

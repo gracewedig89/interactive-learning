@@ -951,23 +951,112 @@ const RENDER = {
   statements: (b) => statementBuilder(b),
   formulas: (b) => formulaSheet(b.course),
 
+  // Select all that apply.
+  multiSelect(b) {
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Select all that apply"),
+      b.items.map((q, n) => {
+        const id = track.add();
+        const slot = h("div");
+        const boxes = q.options.map((opt) => { const c = h("input", { type: "checkbox", value: opt }); return { opt, c, row: h("label", { class: "ms-opt" }, c, h("span", {}, opt)) }; });
+        const check = (restore) => {
+          const picked = boxes.filter((x) => x.c.checked).map((x) => x.opt);
+          if (!picked.length) return;
+          const want = new Set(q.answers);
+          const ok = picked.length === want.size && picked.every((p) => want.has(p));
+          boxes.forEach((x) => { x.row.classList.toggle("right", ok && x.c.checked); x.row.classList.toggle("wrong", !ok && x.c.checked && !want.has(x.opt)); x.row.classList.remove("missed"); });
+          const wrongPicks = picked.filter((p) => !want.has(p)).length, missing = q.answers.filter((a) => !picked.includes(a)).length;
+          const miss = { concept: q.question, detail: `I picked: ${picked.join("; ")}.` };
+          slot.replaceChildren(feedback(ok, ok ? q.explanation : `${wrongPicks ? `${wrongPicks} of your picks ${wrongPicks === 1 ? "doesn't" : "don't"} belong. ` : ""}${missing ? `You're missing ${missing}.` : ""}`,
+            `For "${q.question}" I picked: ${picked.join("; ")}. Which am I getting wrong and why? Don't just give me the answer.`, miss),
+            !ok ? h("button", { class: "linkish", onclick: (e) => { boxes.forEach((x) => x.row.classList.toggle("missed", want.has(x.opt) && !x.c.checked)); e.currentTarget.replaceWith(h("p", { class: "muted", style: "margin:.2rem 0 0;font-size:.9rem" }, "Correct answers are outlined. ", q.explanation)); } }, "Show the answer") : null);
+          if (!restore) { track.record(id, picked); note(`Select-all "${q.question.slice(0, 70)}": ${ok ? "right" : "wrong"}.`); }
+          track.attempt(id, ok, miss, restore);
+        };
+        const saved = track.answer(id);
+        if (Array.isArray(saved)) { boxes.forEach((x) => (x.c.checked = saved.includes(x.opt))); queueMicrotask(() => check(true)); }
+        return track.at(id, h("div", { class: "quiz" }, h("b", {}, `${n + 1}. `, q.question), h("small", { class: "muted" }, "Select all that apply."),
+          h("div", { class: "ms-list" }, boxes.map((x) => x.row)), h("div", {}, h("button", { class: "btn small", onclick: () => check(false) }, "Check")), slot));
+      }));
+  },
+
+  // Fill in the blank: ___ in the prompt becomes a box (or a dropdown when choices are given).
+  fillBlank(b) {
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Fill in the blank"),
+      b.items.map((q, n) => {
+        const id = track.add();
+        const slot = h("div");
+        const fields = q.blanks.map((bl, i) => bl.choices
+          ? h("select", { "aria-label": `Blank ${i + 1}` }, h("option", { value: "" }, "choose…"), bl.choices.map((c) => h("option", { value: c }, c)))
+          : h("input", { class: "fb-in", "aria-label": `Blank ${i + 1}`, autocomplete: "off" }));
+        const parts = q.prompt.split("___");
+        const sentence = h("p", { class: "fill-line" }, parts.flatMap((t, i) => [t, fields[i] || null]));
+        const clean = (v) => String(v).toLowerCase().trim().replace(/[.\s]+$/, "");
+        const check = (restore) => {
+          const vals = fields.map((f) => f.value);
+          if (vals.some((v) => !v.trim())) return;
+          const okEach = q.blanks.map((bl, i) => [bl.answer, ...(bl.acceptable || [])].map(clean).includes(clean(vals[i])));
+          fields.forEach((f, i) => { f.classList.toggle("good-cell", okEach[i]); f.classList.toggle("bad-cell", !okEach[i]); });
+          const ok = okEach.every(Boolean);
+          const miss = { concept: q.prompt.replace(/___/g, "____"), detail: `I filled in: ${vals.join(", ")}.` };
+          slot.replaceChildren(feedback(ok, ok ? q.explanation : "Not quite. The red blank is off.", `For "${q.prompt}" I filled in ${vals.join(", ")}. What am I missing?`, miss),
+            !ok ? h("button", { class: "linkish", onclick: (e) => e.currentTarget.replaceWith(h("p", { class: "muted", style: "margin:.2rem 0 0;font-size:.9rem" }, "Answer: ", h("b", {}, q.blanks.map((x) => x.answer).join(", ")), ". ", q.explanation)) }, "Show the answer") : null);
+          if (!restore) { track.record(id, vals); note(`Fill-in "${q.prompt.slice(0, 70)}": ${ok ? "right" : "wrong"}.`); }
+          track.attempt(id, ok, miss, restore);
+        };
+        fields.forEach((f) => f.addEventListener("keydown", (e) => { if (e.key === "Enter") check(false); }));
+        const saved = track.answer(id);
+        if (Array.isArray(saved)) { fields.forEach((f, i) => (f.value = saved[i] || "")); queueMicrotask(() => check(true)); }
+        return track.at(id, h("div", { class: "quiz" }, h("b", {}, `${n + 1}.`), sentence, h("div", {}, h("button", { class: "btn small", onclick: () => check(false) }, "Check")), slot));
+      }));
+  },
+
+  // Matching: pick the right definition for each term.
+  matching(b) {
+    return h("section", { class: "block" }, h("h2", {}, b.title || "Match them up"),
+      b.items.map((q, n) => {
+        const id = track.add();
+        const slot = h("div");
+        // Shuffle the definitions the same way every time (so saved answers still line up).
+        const defs = q.pairs.map((p) => p.definition).map((d, i) => [d, (i * 7 + q.pairs.length * 3) % 11]).sort((x, y) => x[1] - y[1]).map((x) => x[0]);
+        const L = (i) => String.fromCharCode(65 + i);
+        const rows = q.pairs.map((p) => { const sel = h("select", { "aria-label": `Definition for ${p.term}` }, h("option", { value: "" }, "choose A, B, C…"), defs.map((d, i) => h("option", { value: d }, `${L(i)}. ${d}`))); return { p, sel, mark: h("span", { class: "jb-mark" }) }; });
+        const check = (restore) => {
+          if (rows.some((r) => !r.sel.value)) return;
+          const okEach = rows.map((r) => r.sel.value === r.p.definition);
+          rows.forEach((r, i) => { r.sel.classList.toggle("good-cell", okEach[i]); r.sel.classList.toggle("bad-cell", !okEach[i]); r.mark.replaceChildren(h("span", { class: okEach[i] ? "good" : "bad" }, okEach[i] ? "✓" : "✗")); });
+          const ok = okEach.every(Boolean);
+          const miss = { concept: q.question, detail: `I mismatched: ${rows.filter((r, i) => !okEach[i]).map((r) => r.p.term).join(", ")}.` };
+          slot.replaceChildren(feedback(ok, ok ? q.explanation : `${okEach.filter((x) => !x).length} still mismatched.`, `I'm mixing up these terms: ${rows.filter((r, i) => !okEach[i]).map((r) => r.p.term).join(", ")}. Can you help me tell them apart?`, miss));
+          if (!restore) { track.record(id, rows.map((r) => r.sel.value)); note(`Matching "${q.question.slice(0, 60)}": ${ok ? "right" : "wrong"}.`); }
+          track.attempt(id, ok, miss, restore);
+        };
+        const saved = track.answer(id);
+        if (Array.isArray(saved)) { rows.forEach((r, i) => (r.sel.value = saved[i] || "")); queueMicrotask(() => check(true)); }
+        return track.at(id, h("div", { class: "quiz" }, h("b", {}, `${n + 1}. `, q.question),
+          h("ol", { class: "match-bank", type: "A" }, defs.map((d) => h("li", {}, d))),
+          h("div", { class: "match-grid" }, rows.map((r) => h("div", { class: "match-row" }, h("b", {}, r.p.term), r.sel, r.mark))),
+          h("div", {}, h("button", { class: "btn small", onclick: () => check(false) }, "Check")), slot));
+      }));
+  },
+
   // Number problems: type the answer, check it, get a hint or the worked answer.
   calc(b) {
     return h("section", { class: "block" }, h("h2", {}, b.title || "Work it out"),
       b.intro ? h("p", { class: "muted", style: "margin:0" }, b.intro) : null,
       b.items.map((it, n) => {
         const id = track.add();
-        const inp = h("input", { inputmode: "decimal", class: "mono calc-in", placeholder: it.unit === "%" ? "%" : "$", "aria-label": `Answer to problem ${n + 1}` });
+        const inp = h("input", { inputmode: "decimal", class: "mono calc-in", placeholder: it.unit === "%" ? "%" : it.unit === "#" ? "number" : "$", "aria-label": `Answer to problem ${n + 1}` });
+        const fmtV = (v) => (it.unit === "%" ? `${v}%` : it.unit === "#" ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 }) : money(v));
         const slot = h("div");
         const hint = it.hint ? h("p", { class: "note", hidden: true, style: "margin:0" }, "💡 ", it.hint) : null;
         const check = (restore) => {
           const v = num(inp.value);
           if (v == null) return;
-          const ok = Math.abs(v - it.answer) < 0.51;
-          const shown = it.unit === "%" ? `${v}%` : money(v);
+          const ok = Math.abs(v - it.answer) < (it.unit === "#" && !Number.isInteger(it.answer) ? 0.011 : 0.51);
+          const shown = fmtV(v);
           const miss = { concept: it.q, detail: `I answered ${shown}.` };
           slot.replaceChildren(feedback(ok, ok ? it.why : "Check your math and try again.", `For this problem: "${it.q}" I got ${shown}. What am I doing wrong? Don't just give me the answer.`, miss),
-            !ok ? h("button", { class: "linkish", onclick: (e) => e.currentTarget.replaceWith(h("p", { class: "muted", style: "margin:.2rem 0 0;font-size:.9rem" }, "Answer: ", h("b", {}, it.unit === "%" ? `${it.answer}%` : money(it.answer)), ". ", it.why)) }, "Show the worked answer") : null);
+            !ok ? h("button", { class: "linkish", onclick: (e) => e.currentTarget.replaceWith(h("p", { class: "muted", style: "margin:.2rem 0 0;font-size:.9rem" }, "Answer: ", h("b", {}, fmtV(it.answer)), ". ", it.why)) }, "Show the worked answer") : null);
           if (!restore) { track.record(id, inp.value); note(`Problem "${it.q.slice(0, 80)}": answered ${shown} (${ok ? "right" : "wrong"}).`); }
           track.attempt(id, ok, miss, restore);
         };
