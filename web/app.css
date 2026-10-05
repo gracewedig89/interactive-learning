@@ -663,3 +663,29 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .ord-chip { font: .9rem var(--mono, ui-monospace, monospace); border: 1px solid var(--rule); background: var(--sunken); color: var(--ink); border-radius: 8px; padding: .35rem .6rem; cursor: pointer; text-align: left; }
 .ord-chip.in { background: var(--accent-soft); border-color: var(--accent); }
 .ord-answer { margin: .3rem 0 0; background: var(--sunken); padding: .5rem .7rem; border-radius: 8px; font-size: .88rem; white-space: pre-wrap; }
+/* Flash cards */
+.flashcards:focus { outline: none; }
+.fc-stage { display: grid; gap: .6rem; justify-items: center; }
+.fc-card { width: min(560px, 100%); height: 240px; perspective: 1200px; border: 0; background: none; padding: 0; cursor: pointer; }
+.fc-inner { position: relative; width: 100%; height: 100%; transition: transform .45s; transform-style: preserve-3d; }
+.fc-card.flipped .fc-inner { transform: rotateY(180deg); }
+.fc-front, .fc-back { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 16px; display: grid; place-content: center; gap: .5rem; padding: 1.2rem; text-align: center; border: 2px solid var(--accent); box-shadow: var(--glow); }
+.fc-front { background: var(--surface); }
+.fc-back { background: var(--accent-soft); transform: rotateY(180deg); }
+.fc-label { color: var(--accent); font-weight: 800; letter-spacing: .08em; font-size: .72rem; }
+.fc-term { font-size: 1.6rem; font-weight: 800; font-family: var(--mono, ui-monospace, monospace); }
+.fc-def { font-size: 1.08rem; line-height: 1.45; }
+.fc-hint { color: var(--ink-soft); font-size: .78rem; }
+.fc-controls { justify-content: center; }
+.fc-done { display: grid; gap: .7rem; justify-items: center; text-align: center; padding: 1.2rem; }
+/* Matching game */
+.mg-status { gap: 1rem; }
+.mg-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.mg-tile { min-height: 84px; border-radius: 12px; border: 2px solid var(--rule); background: var(--surface); color: var(--ink); padding: .5rem; font-size: .86rem; line-height: 1.3; cursor: pointer; transition: transform .12s, opacity .3s, background .2s; }
+.mg-tile.term { font-weight: 800; font-family: var(--mono, ui-monospace, monospace); font-size: .95rem; background: var(--accent-soft); }
+.mg-tile:hover { transform: translateY(-2px); }
+.mg-tile.picked { border-color: var(--accent); box-shadow: var(--glow); transform: scale(1.03); }
+.mg-tile.matched { background: var(--good-soft); border-color: var(--good); opacity: .35; cursor: default; transform: none; }
+.mg-tile.nope { border-color: var(--bad); background: var(--bad-soft); animation: mg-shake .4s; }
+@keyframes mg-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+@media (max-width: 760px) { .mg-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fc-card { height: 220px; } .fc-term { font-size: 1.3rem; } }

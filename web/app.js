@@ -951,6 +951,122 @@ const RENDER = {
   statements: (b) => statementBuilder(b),
   formulas: (b) => formulaSheet(b.course),
 
+  // Flash cards: tap to flip, sort into "got it" and "still learning", repeat the ones you missed.
+  flashcards(b) {
+    const key = "studyhub:fc:" + (b.deck || "") + ":" + (b.title || "");
+    let known;
+    try { known = new Set(JSON.parse(localStorage.getItem(key)) || []); } catch { known = new Set(); }
+    const saveKnown = () => { try { localStorage.setItem(key, JSON.stringify([...known])); } catch {} };
+    const cards = b.cards.map(([front, back], i) => ({ front, back, i }));
+    let termFirst = true, queue = [], pos = 0, flipped = false, missed = [];
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const start = (only) => { queue = shuffle([...(only || cards.filter((c) => !known.has(c.i)))]); if (!queue.length) queue = shuffle([...cards]); pos = 0; missed = []; flipped = false; draw(); };
+    const face = h("div", { class: "fc-front" }), rear = h("div", { class: "fc-back" });
+    const card = h("button", { class: "fc-card", "aria-label": "Flash card. Tap to flip.", onclick: () => { flipped = !flipped; card.classList.toggle("flipped", flipped); } }, h("div", { class: "fc-inner" }, face, rear));
+    const count = h("span", { class: "muted" });
+    const bar = h("div", { class: "bar thin" }, h("span"));
+    const stage = h("div", { class: "fc-stage" });
+    const controls = h("div", { class: "row fc-controls" },
+      h("button", { class: "btn quiet", onclick: () => answer(false) }, "✗ Still learning"),
+      h("button", { class: "btn", onclick: () => answer(true) }, "✓ Got it"));
+    const answer = (ok) => {
+      const c = queue[pos]; if (!c) return;
+      if (ok) known.add(c.i); else { known.delete(c.i); missed.push(c); }
+      saveKnown(); pos++; flipped = false; draw();
+    };
+    const draw = () => {
+      count.textContent = `${known.size} of ${cards.length} known`;
+      bar.firstChild.style.width = `${(known.size / cards.length) * 100}%`;
+      const c = queue[pos];
+      if (!c) {
+        stage.replaceChildren(h("div", { class: "fc-done" },
+          h("p", { style: "margin:0;font-size:1.1rem" }, missed.length ? `Round done! ${missed.length} still learning.` : known.size === cards.length ? "🎉 You know every card in this deck!" : "Round done!"),
+          h("div", { class: "row" },
+            missed.length ? h("button", { class: "btn", onclick: () => start(missed) }, `Study the ${missed.length} I missed`) : null,
+            h("button", { class: missed.length ? "btn quiet" : "btn", onclick: () => start(cards) }, "Go through all of them again"))));
+        if (!missed.length) celebrate();
+        return;
+      }
+      card.classList.remove("flipped");
+      face.replaceChildren(h("small", { class: "fc-label" }, termFirst ? "TERM" : "DEFINITION"), h("div", { class: termFirst ? "fc-term" : "fc-def" }, termFirst ? c.front : c.back), h("small", { class: "fc-hint" }, "tap to flip"));
+      rear.replaceChildren(h("small", { class: "fc-label" }, termFirst ? "DEFINITION" : "TERM"), h("div", { class: termFirst ? "fc-def" : "fc-term" }, termFirst ? c.back : c.front));
+      stage.replaceChildren(h("small", { class: "muted" }, `Card ${pos + 1} of ${queue.length}`), card, controls);
+    };
+    const el = h("section", { class: "block flashcards", tabindex: 0, onkeydown: (e) => {
+      if (e.target.tagName === "INPUT") return;
+      if (e.key === " " || e.key === "Enter") { e.preventDefault(); card.click(); }
+      else if (e.key === "ArrowRight") answer(true); else if (e.key === "ArrowLeft") answer(false);
+    } },
+      h("div", { class: "panel-head" }, h("h2", {}, b.title || "Flash cards"), count),
+      bar,
+      h("div", { class: "row" },
+        h("button", { class: "linkish", onclick: (e) => { termFirst = !termFirst; e.currentTarget.textContent = termFirst ? "Show definitions first" : "Show terms first"; draw(); } }, "Show definitions first"),
+        h("button", { class: "linkish", onclick: () => start(cards) }, "Shuffle all"),
+        h("button", { class: "linkish", onclick: () => { known.clear(); saveKnown(); start(cards); } }, "Reset")),
+      stage,
+      h("small", { class: "muted" }, "Keyboard: Space flips, → got it, ← still learning."));
+    start();
+    return el;
+  },
+
+  // Matching game: tap a term, then its definition. Rounds of 6, timed.
+  matchGame(b) {
+    const key = "studyhub:mg:" + (b.deck || "") + ":" + (b.title || "");
+    let best; try { best = Number(localStorage.getItem(key)) || 0; } catch { best = 0; }
+    const all = b.pairs.map(([t, d], i) => ({ t, d, i }));
+    let order = [], round = 0, pick = null, left = 0, startAt = 0, timer = null, misses = 0;
+    const board = h("div", { class: "mg-board" });
+    const status = h("div", { class: "row mg-status" });
+    const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const per = Math.min(6, all.length);
+    const rounds = Math.ceil(all.length / per);
+    const tick = () => { const s = (performance.now() - startAt) / 1000; status.firstChild.textContent = `⏱ ${s.toFixed(1)}s`; };
+    const deal = () => {
+      if (!order.length || round * per >= order.length) { order = shuffle([...all]); round = 0; }
+      const set = order.slice(round * per, round * per + per);
+      if (set.length < per) set.push(...shuffle(all.filter((x) => !set.includes(x))).slice(0, per - set.length));
+      round++;
+      left = set.length; misses = 0; pick = null;
+      const tiles = shuffle(set.flatMap((p) => [{ p, kind: "t", text: p.t }, { p, kind: "d", text: p.d }]));
+      board.replaceChildren(...tiles.map((tile) => {
+        const el = h("button", { class: `mg-tile ${tile.kind === "t" ? "term" : "def"}` }, tile.text);
+        el.onclick = () => {
+          if (el.classList.contains("matched")) return;
+          if (!pick) { pick = { tile, el }; el.classList.add("picked"); return; }
+          if (pick.el === el) { el.classList.remove("picked"); pick = null; return; }
+          const a = pick; pick = null; a.el.classList.remove("picked");
+          if (a.tile.p === tile.p && a.tile.kind !== tile.kind) {
+            [a.el, el].forEach((x) => x.classList.add("matched"));
+            if (--left === 0) finish();
+          } else {
+            misses++;
+            [a.el, el].forEach((x) => { x.classList.add("nope"); setTimeout(() => x.classList.remove("nope"), 450); });
+          }
+        };
+        return el;
+      }));
+      startAt = performance.now(); clearInterval(timer); timer = setInterval(() => { if (!board.isConnected) return clearInterval(timer); tick(); }, 100);
+      status.replaceChildren(h("b", {}, "⏱ 0.0s"), h("span", { class: "muted" }, `Round ${((round - 1) % rounds) + 1} of ${rounds}`), best ? h("span", { class: "muted" }, `Best: ${best.toFixed(1)}s`) : null);
+    };
+    const finish = () => {
+      clearInterval(timer);
+      const s = (performance.now() - startAt) / 1000;
+      const isBest = !best || s < best;
+      if (isBest) { best = s; try { localStorage.setItem(key, String(s)); } catch {} }
+      note(`Matching game round: ${s.toFixed(1)}s, ${misses} misses.`);
+      celebrate();
+      board.replaceChildren(h("div", { class: "fc-done" },
+        h("p", { style: "margin:0;font-size:1.1rem" }, `${isBest ? "🏆 New best! " : "Nice! "}${s.toFixed(1)} seconds, ${misses} miss${misses === 1 ? "" : "es"}.`),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: deal }, round < rounds ? "Next round →" : "Play again"))));
+    };
+    const el = h("section", { class: "block matchgame" },
+      h("div", { class: "panel-head" }, h("h2", {}, b.title || "Matching game"), h("button", { class: "btn quiet small", onclick: deal }, "New round")),
+      h("p", { class: "muted", style: "margin:0" }, "Tap a term, then tap its definition. Match them all as fast as you can."),
+      status, board);
+    deal();
+    return el;
+  },
+
   // Put the pieces in order: tap code pieces to build the query.
   order(b) {
     return h("section", { class: "block" }, h("h2", {}, b.title || "Put the query together"),
@@ -1449,21 +1565,30 @@ function resultTable({ columns, rows }, mark) {
     h("tbody", {}, rows.slice(0, 200).map((r, i) => h("tr", { class: mark?.has(i) ? "flag" : null }, r.map((v) => h("td", {}, v === null ? "NULL" : v)))))));
 }
 
+// Any lesson with a real definitions list also gets flash cards and a matching game for those terms.
+function studyBlocks(lesson) {
+  if (lesson.blocks.some((b) => b.type === "flashcards" || b.type === "matchGame")) return lesson.blocks;
+  return lesson.blocks.flatMap((b) => b.type === "definitions" && b.items.length >= 4
+    ? [b, { type: "flashcards", title: "🃏 Flash cards: these terms", cards: b.items, deck: lesson.title }, { type: "matchGame", title: "🧩 Matching game: these terms", pairs: b.items, deck: lesson.title }]
+    : [b]);
+}
+
 function renderLesson(lesson) {
   track = newTracker(lesson);
+  const blocks = studyBlocks(lesson);
   const done = track.saved.done;
   const course = state.course;
   const article = h("article", { class: "lesson" },
     h("div", { class: "row" }, h("h1", { style: "flex:1" }, lesson.title), done ? h("span", { class: "chip done" }, "✓ Completed") : null),
     h("button", { class: "watch-btn", onclick: () => openVideo({ key: `${course}:${state.lessonId || lesson.title}`, courseKey: course, topic: lesson.title, lessonTitle: lesson.title, material: lessonMaterial(lesson) }) },
       h("span", { class: "watch-face", "aria-hidden": "true" }, "👨‍🏫"), h("span", {}, h("b", {}, `🎬 Watch ${TEACHER} explain this lesson`), h("small", {}, "A short video with chalkboard visuals, read out loud"))),
-    lesson.blocks.map((b, bi) => { const el = RENDER[b.type]?.(b); if (el?.dataset) el.dataset.bi = bi; return el; }));
+    blocks.map((b, bi) => { const el = RENDER[b.type]?.(b); if (el?.dataset) el.dataset.bi = bi; return el; }));
   // A 🎬 button on each section: a short video on just that part of this lesson.
   article.querySelectorAll(":scope > [data-bi]").forEach((sec) => {
     const n = Number(sec.dataset.bi);
     const h2 = sec.querySelector("h2");
-    const b = lesson.blocks[n];
-    if (!b || b.type === "definitions" || b.type === "schema") return;
+    const b = blocks[n];
+    if (!b || ["definitions", "schema", "flashcards", "matchGame"].includes(b.type)) return;
     const title = h2?.textContent.trim() || (b.type === "objectives" ? "What you need to know"
       : sec.querySelector("table") ? "the reference table" : (sec.querySelector("h3, p b, p")?.textContent || "this part").trim().replace(/\s+/g, " ").replace(/:$/, "").slice(0, 50));
     const btnHost = h2 || sec.insertBefore(h("div", { class: "section-video" }), sec.firstChild);
@@ -3754,7 +3879,7 @@ function classView() {
     } else stage.append(builderView());
   }
 
-  if (state.course === "sql" && !stage.querySelector("#b-title")) stage.prepend(schemaDock());
+  if (state.course === "sql" && !stage.querySelector("#b-title") && state.lessonId !== "crash-course" && (state.lessonId || (LESSONS.sql || [])[0]?.id) !== "crash-course") stage.prepend(schemaDock());
   const view = h("div", { class: "classview" }, side, stage, tutor.mount());
   document.body.append(h("button", { class: "btn fab", onclick: () => { document.body.classList.add("tutor-open"); tutor.input.focus(); } }, "Ask the tutor"));
   tutor.draw();

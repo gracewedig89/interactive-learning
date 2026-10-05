@@ -1,6 +1,1325 @@
 // Built-in starter lessons. All exercises run against public/lessons/practice-db.sql in the browser.
 export default [
   {
+    "id": "crash-course",
+    "title": "⚡ SQL crash course: every term (start here)",
+    "blocks": [
+      {
+        "type": "objectives",
+        "text": "Learn the SQL vocabulary fast. Every term from your class is here, split into small decks. For each deck, flip the flash cards (mark \"still learning\" on any you don't know), then play the matching game until you can clear it quickly. Then read real code in the last deck so the words turn into queries you recognize."
+      },
+      {
+        "type": "text",
+        "html": "<p><b>⏱ Your 3-hour plan</b></p>\n<table class=\"ref\"><thead><tr><th>Time</th><th>Do this</th></tr></thead><tbody>\n<tr><td>0:00 – 0:45</td><td>This lesson, <b>decks 1–4</b>: flash cards, then the matching game for each. Repeat \"still learning\" cards until they're all known.</td></tr>\n<tr><td>0:45 – 1:15</td><td>This lesson, <b>decks 5–7</b> (joins, subqueries, Chapter 4) the same way.</td></tr>\n<tr><td>1:15 – 1:30</td><td><b>Deck 8: read the code.</b> Say out loud what each query does before flipping.</td></tr>\n<tr><td>1:30 – 2:15</td><td><b>Lesson 5 (Put the query together):</b> the put-in-order pieces, then the 12 practice queries.</td></tr>\n<tr><td>2:15 – 2:45</td><td><b>Lesson 4 (Ch 3 &amp; 4 review):</b> skim the tables, do the join and subquery practice, then the quiz.</td></tr>\n<tr><td>2:45 – 3:00</td><td>Come back here and re-run every deck's <b>\"Study the ones I missed\"</b> and one matching round each.</td></tr>\n</tbody></table>\n<p class=\"muted\">Short on time? Decks 2, 3, 4 and 5 plus Lesson 5's quiz cover most test questions.</p>"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 1. Database basics",
+        "cards": [
+          [
+            "Database",
+            "An organized collection of data, stored in tables."
+          ],
+          [
+            "Table",
+            "A set of data about one thing (like Customers), arranged in rows and columns."
+          ],
+          [
+            "Row (record)",
+            "One entry in a table, like one customer."
+          ],
+          [
+            "Column (field)",
+            "One attribute stored for every row, like city or price."
+          ],
+          [
+            "Primary key",
+            "A column (or columns) whose value uniquely identifies each row. No duplicates, no NULLs."
+          ],
+          [
+            "Foreign key",
+            "A column that points to the primary key of another table. It's how tables link together."
+          ],
+          [
+            "Composite key",
+            "A key made of two or more columns together (like TickerSymbol + TradeDate)."
+          ],
+          [
+            "NULL",
+            "A missing or unknown value. It isn't zero and it isn't blank text."
+          ],
+          [
+            "Query",
+            "A request for data, written in SQL."
+          ],
+          [
+            "SQL",
+            "Structured Query Language: the language for asking a relational database for data."
+          ],
+          [
+            "Relational database",
+            "A database of tables that relate to each other through keys."
+          ],
+          [
+            "Schema",
+            "The design of a database: its tables, columns and how they connect."
+          ],
+          [
+            "Data type",
+            "What kind of value a column holds: INT, DECIMAL, CHAR/VARCHAR (text), DATE…"
+          ],
+          [
+            "SSMS",
+            "SQL Server Management Studio: the program you write and run SQL Server queries in."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Database basics",
+        "pairs": [
+          [
+            "Database",
+            "An organized collection of data, stored in tables."
+          ],
+          [
+            "Table",
+            "A set of data about one thing (like Customers), arranged in rows and columns."
+          ],
+          [
+            "Row (record)",
+            "One entry in a table, like one customer."
+          ],
+          [
+            "Column (field)",
+            "One attribute stored for every row, like city or price."
+          ],
+          [
+            "Primary key",
+            "A column (or columns) whose value uniquely identifies each row. No duplicates, no NULLs."
+          ],
+          [
+            "Foreign key",
+            "A column that points to the primary key of another table. It's how tables link together."
+          ],
+          [
+            "Composite key",
+            "A key made of two or more columns together (like TickerSymbol + TradeDate)."
+          ],
+          [
+            "NULL",
+            "A missing or unknown value. It isn't zero and it isn't blank text."
+          ],
+          [
+            "Query",
+            "A request for data, written in SQL."
+          ],
+          [
+            "SQL",
+            "Structured Query Language: the language for asking a relational database for data."
+          ],
+          [
+            "Relational database",
+            "A database of tables that relate to each other through keys."
+          ],
+          [
+            "Schema",
+            "The design of a database: its tables, columns and how they connect."
+          ],
+          [
+            "Data type",
+            "What kind of value a column holds: INT, DECIMAL, CHAR/VARCHAR (text), DATE…"
+          ],
+          [
+            "SSMS",
+            "SQL Server Management Studio: the program you write and run SQL Server queries in."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 2. The clauses (in order!)",
+        "cards": [
+          [
+            "SELECT",
+            "Lists the columns (or calculations) you want to see."
+          ],
+          [
+            "FROM",
+            "Names the table the data comes from."
+          ],
+          [
+            "WHERE",
+            "Filters ROWS before any grouping. No aggregates allowed here."
+          ],
+          [
+            "GROUP BY",
+            "Makes one group (one result row) per distinct value, for use with aggregates."
+          ],
+          [
+            "HAVING",
+            "Filters GROUPS after GROUP BY. Conditions on COUNT/SUM/AVG go here."
+          ],
+          [
+            "ORDER BY",
+            "Sorts the result. ASC (default) = smallest first, DESC = largest first."
+          ],
+          [
+            "TOP / LIMIT",
+            "Returns only the first N rows: SELECT TOP 5 (SQL Server) or LIMIT 5 (SQLite/MySQL)."
+          ],
+          [
+            "AS (alias)",
+            "Gives a column or table a nickname: SUM(qty) AS total, FROM customers AS c."
+          ],
+          [
+            "DISTINCT",
+            "Removes duplicate rows from the result: SELECT DISTINCT state."
+          ],
+          [
+            "Clause order",
+            "SELECT → FROM → JOIN … ON → WHERE → GROUP BY → HAVING → ORDER BY"
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: The clauses (in order!)",
+        "pairs": [
+          [
+            "SELECT",
+            "Lists the columns (or calculations) you want to see."
+          ],
+          [
+            "FROM",
+            "Names the table the data comes from."
+          ],
+          [
+            "WHERE",
+            "Filters ROWS before any grouping. No aggregates allowed here."
+          ],
+          [
+            "GROUP BY",
+            "Makes one group (one result row) per distinct value, for use with aggregates."
+          ],
+          [
+            "HAVING",
+            "Filters GROUPS after GROUP BY. Conditions on COUNT/SUM/AVG go here."
+          ],
+          [
+            "ORDER BY",
+            "Sorts the result. ASC (default) = smallest first, DESC = largest first."
+          ],
+          [
+            "TOP / LIMIT",
+            "Returns only the first N rows: SELECT TOP 5 (SQL Server) or LIMIT 5 (SQLite/MySQL)."
+          ],
+          [
+            "AS (alias)",
+            "Gives a column or table a nickname: SUM(qty) AS total, FROM customers AS c."
+          ],
+          [
+            "DISTINCT",
+            "Removes duplicate rows from the result: SELECT DISTINCT state."
+          ],
+          [
+            "Clause order",
+            "SELECT → FROM → JOIN … ON → WHERE → GROUP BY → HAVING → ORDER BY"
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 3. Filtering operators",
+        "cards": [
+          [
+            "=",
+            "Equals. Text goes in single quotes: state = 'UT'."
+          ],
+          [
+            "<> or !=",
+            "Not equal to."
+          ],
+          [
+            "AND",
+            "Both conditions must be true."
+          ],
+          [
+            "OR",
+            "At least one condition must be true."
+          ],
+          [
+            "NOT",
+            "Flips a condition: NOT IN, NOT BETWEEN, NOT LIKE, IS NOT NULL."
+          ],
+          [
+            "IN",
+            "Matches any value in a list: state IN ('UT','NV')."
+          ],
+          [
+            "BETWEEN",
+            "A range that includes both ends: price BETWEEN 10 AND 50."
+          ],
+          [
+            "LIKE",
+            "Matches a text pattern using wildcards."
+          ],
+          [
+            "% wildcard",
+            "Any number of characters: 'B%' = starts with B, '%book%' = contains book."
+          ],
+          [
+            "_ wildcard",
+            "Exactly one character: '_a%' = second letter is a."
+          ],
+          [
+            "IS NULL",
+            "Finds missing values. Never write = NULL."
+          ],
+          [
+            "ASC / DESC",
+            "Sort smallest-to-largest (ASC, the default) or largest-to-smallest (DESC)."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Filtering operators",
+        "pairs": [
+          [
+            "=",
+            "Equals. Text goes in single quotes: state = 'UT'."
+          ],
+          [
+            "<> or !=",
+            "Not equal to."
+          ],
+          [
+            "AND",
+            "Both conditions must be true."
+          ],
+          [
+            "OR",
+            "At least one condition must be true."
+          ],
+          [
+            "NOT",
+            "Flips a condition: NOT IN, NOT BETWEEN, NOT LIKE, IS NOT NULL."
+          ],
+          [
+            "IN",
+            "Matches any value in a list: state IN ('UT','NV')."
+          ],
+          [
+            "BETWEEN",
+            "A range that includes both ends: price BETWEEN 10 AND 50."
+          ],
+          [
+            "LIKE",
+            "Matches a text pattern using wildcards."
+          ],
+          [
+            "% wildcard",
+            "Any number of characters: 'B%' = starts with B, '%book%' = contains book."
+          ],
+          [
+            "_ wildcard",
+            "Exactly one character: '_a%' = second letter is a."
+          ],
+          [
+            "IS NULL",
+            "Finds missing values. Never write = NULL."
+          ],
+          [
+            "ASC / DESC",
+            "Sort smallest-to-largest (ASC, the default) or largest-to-smallest (DESC)."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 4. Aggregates and grouping",
+        "cards": [
+          [
+            "Aggregate function",
+            "Turns many rows into one value: COUNT, SUM, AVG, MIN, MAX."
+          ],
+          [
+            "COUNT(*)",
+            "Counts every row, including NULLs."
+          ],
+          [
+            "COUNT(column)",
+            "Counts the non-NULL values in a column, repeats included."
+          ],
+          [
+            "COUNT(DISTINCT column)",
+            "Counts each different value once (100 companies, not 262,543 rows)."
+          ],
+          [
+            "SUM",
+            "Adds up a numeric column."
+          ],
+          [
+            "AVG",
+            "The average (mean) of a numeric column; NULLs are skipped."
+          ],
+          [
+            "MIN",
+            "The smallest value."
+          ],
+          [
+            "MAX",
+            "The largest value."
+          ],
+          [
+            "Summary row",
+            "One result row per group made by GROUP BY."
+          ],
+          [
+            "WHERE vs HAVING",
+            "WHERE filters rows before grouping; HAVING filters groups after."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Aggregates and grouping",
+        "pairs": [
+          [
+            "Aggregate function",
+            "Turns many rows into one value: COUNT, SUM, AVG, MIN, MAX."
+          ],
+          [
+            "COUNT(*)",
+            "Counts every row, including NULLs."
+          ],
+          [
+            "COUNT(column)",
+            "Counts the non-NULL values in a column, repeats included."
+          ],
+          [
+            "COUNT(DISTINCT column)",
+            "Counts each different value once (100 companies, not 262,543 rows)."
+          ],
+          [
+            "SUM",
+            "Adds up a numeric column."
+          ],
+          [
+            "AVG",
+            "The average (mean) of a numeric column; NULLs are skipped."
+          ],
+          [
+            "MIN",
+            "The smallest value."
+          ],
+          [
+            "MAX",
+            "The largest value."
+          ],
+          [
+            "Summary row",
+            "One result row per group made by GROUP BY."
+          ],
+          [
+            "WHERE vs HAVING",
+            "WHERE filters rows before grouping; HAVING filters groups after."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 5. Joins",
+        "cards": [
+          [
+            "JOIN / INNER JOIN",
+            "Returns only rows that match in BOTH tables."
+          ],
+          [
+            "LEFT JOIN",
+            "ALL rows from the left table + matches from the right (NULLs where no match)."
+          ],
+          [
+            "RIGHT JOIN",
+            "ALL rows from the right table + matches from the left."
+          ],
+          [
+            "FULL OUTER JOIN",
+            "ALL rows from BOTH tables, matched where possible, NULLs elsewhere."
+          ],
+          [
+            "CROSS JOIN",
+            "Every row paired with every row (rows = left × right). No ON clause."
+          ],
+          [
+            "Cartesian product",
+            "Every possible combination of rows from two tables."
+          ],
+          [
+            "ON",
+            "Says which columns must match to join: ON c.customer_id = o.customer_id."
+          ],
+          [
+            "Table alias",
+            "A short name for a table (FROM StockData AS sd) so you can write sd.TickerSymbol."
+          ],
+          [
+            "Unmatched rows",
+            "Rows with no partner in the other table; they show up as NULLs in outer joins."
+          ],
+          [
+            "Find rows with no match",
+            "LEFT JOIN … WHERE right_table.key IS NULL"
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Joins",
+        "pairs": [
+          [
+            "JOIN / INNER JOIN",
+            "Returns only rows that match in BOTH tables."
+          ],
+          [
+            "LEFT JOIN",
+            "ALL rows from the left table + matches from the right (NULLs where no match)."
+          ],
+          [
+            "RIGHT JOIN",
+            "ALL rows from the right table + matches from the left."
+          ],
+          [
+            "FULL OUTER JOIN",
+            "ALL rows from BOTH tables, matched where possible, NULLs elsewhere."
+          ],
+          [
+            "CROSS JOIN",
+            "Every row paired with every row (rows = left × right). No ON clause."
+          ],
+          [
+            "Cartesian product",
+            "Every possible combination of rows from two tables."
+          ],
+          [
+            "ON",
+            "Says which columns must match to join: ON c.customer_id = o.customer_id."
+          ],
+          [
+            "Table alias",
+            "A short name for a table (FROM StockData AS sd) so you can write sd.TickerSymbol."
+          ],
+          [
+            "Unmatched rows",
+            "Rows with no partner in the other table; they show up as NULLs in outer joins."
+          ],
+          [
+            "Find rows with no match",
+            "LEFT JOIN … WHERE right_table.key IS NULL"
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 6. Subqueries",
+        "cards": [
+          [
+            "Subquery",
+            "A query inside another query, in parentheses."
+          ],
+          [
+            "Scalar subquery",
+            "A subquery that returns exactly one value."
+          ],
+          [
+            "Subquery in WHERE",
+            "WHERE price > (SELECT AVG(price) …): needed because aggregates can't go in WHERE."
+          ],
+          [
+            "IN (subquery)",
+            "Keeps rows whose value appears in the list the subquery returns."
+          ],
+          [
+            "= ANY",
+            "True if it equals at least one value in the subquery's list (same as IN)."
+          ],
+          [
+            ">= ALL",
+            "True if it's greater than or equal to EVERY value in the list; finds the top one."
+          ],
+          [
+            "Correlated subquery",
+            "Uses a column from the outer query, so it runs once per outer row (slower)."
+          ],
+          [
+            "Derived table",
+            "A subquery in the FROM clause, given an alias and used like a table."
+          ],
+          [
+            "EXISTS",
+            "True if the subquery returns at least one row."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Subqueries",
+        "pairs": [
+          [
+            "Subquery",
+            "A query inside another query, in parentheses."
+          ],
+          [
+            "Scalar subquery",
+            "A subquery that returns exactly one value."
+          ],
+          [
+            "Subquery in WHERE",
+            "WHERE price > (SELECT AVG(price) …): needed because aggregates can't go in WHERE."
+          ],
+          [
+            "IN (subquery)",
+            "Keeps rows whose value appears in the list the subquery returns."
+          ],
+          [
+            "= ANY",
+            "True if it equals at least one value in the subquery's list (same as IN)."
+          ],
+          [
+            ">= ALL",
+            "True if it's greater than or equal to EVERY value in the list; finds the top one."
+          ],
+          [
+            "Correlated subquery",
+            "Uses a column from the outer query, so it runs once per outer row (slower)."
+          ],
+          [
+            "Derived table",
+            "A subquery in the FROM clause, given an alias and used like a table."
+          ],
+          [
+            "EXISTS",
+            "True if the subquery returns at least one row."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 7. Chapter 4: saved objects, CTEs and more",
+        "cards": [
+          [
+            "Stored procedure",
+            "A saved, named query you reuse. Created with CREATE PROCEDURE."
+          ],
+          [
+            "EXEC",
+            "Runs a stored procedure: EXEC usp_TotalVolume;"
+          ],
+          [
+            "Parameter (@)",
+            "An input to a procedure: @DateofBirth DATETIME."
+          ],
+          [
+            "Trigger",
+            "Code that runs automatically AFTER an INSERT, UPDATE or DELETE."
+          ],
+          [
+            "INSERTED table",
+            "The special table a trigger uses to see the new rows."
+          ],
+          [
+            "View",
+            "A saved query you use like a table. Stores the query, not the data."
+          ],
+          [
+            "CTE",
+            "Common Table Expression: WITH Name AS (…) builds a temporary result to query."
+          ],
+          [
+            "Recursive CTE",
+            "A CTE that refers to itself (base query UNION ALL step) until a WHERE stops it."
+          ],
+          [
+            "UNION ALL",
+            "Stacks the results of two queries, keeping duplicates."
+          ],
+          [
+            "Window function",
+            "Calculates over a set of rows but keeps every row (doesn't collapse like GROUP BY)."
+          ],
+          [
+            "NTILE(4) OVER (ORDER BY …)",
+            "Labels each row 1-4 by quartile."
+          ],
+          [
+            "CASE",
+            "IF-THEN logic in SQL: CASE WHEN … THEN … ELSE … END."
+          ],
+          [
+            "Crosstab",
+            "A summary that turns row values (like quarters) into columns."
+          ],
+          [
+            "PIVOT",
+            "SQL Server operator that builds a crosstab with less code."
+          ],
+          [
+            "ROLLUP",
+            "Adds subtotals that follow a hierarchy, plus a grand total."
+          ],
+          [
+            "CUBE",
+            "Adds subtotals for every combination, plus a grand total."
+          ],
+          [
+            "GETDATE()",
+            "Today's date and time in SQL Server."
+          ],
+          [
+            "DATEDIFF",
+            "The difference between two dates, in a unit like yyyy (years)."
+          ],
+          [
+            "MONTH() / YEAR()",
+            "Pull the month or year number out of a date."
+          ],
+          [
+            "ASCII()",
+            "The numeric code of the first character: ASCII('A') = 65."
+          ],
+          [
+            "UPPER()",
+            "Makes text all capital letters."
+          ],
+          [
+            "CONCAT()",
+            "Joins pieces of text together."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: Chapter 4: saved objects, CTEs and more",
+        "pairs": [
+          [
+            "Stored procedure",
+            "A saved, named query you reuse. Created with CREATE PROCEDURE."
+          ],
+          [
+            "EXEC",
+            "Runs a stored procedure: EXEC usp_TotalVolume;"
+          ],
+          [
+            "Parameter (@)",
+            "An input to a procedure: @DateofBirth DATETIME."
+          ],
+          [
+            "Trigger",
+            "Code that runs automatically AFTER an INSERT, UPDATE or DELETE."
+          ],
+          [
+            "INSERTED table",
+            "The special table a trigger uses to see the new rows."
+          ],
+          [
+            "View",
+            "A saved query you use like a table. Stores the query, not the data."
+          ],
+          [
+            "CTE",
+            "Common Table Expression: WITH Name AS (…) builds a temporary result to query."
+          ],
+          [
+            "Recursive CTE",
+            "A CTE that refers to itself (base query UNION ALL step) until a WHERE stops it."
+          ],
+          [
+            "UNION ALL",
+            "Stacks the results of two queries, keeping duplicates."
+          ],
+          [
+            "Window function",
+            "Calculates over a set of rows but keeps every row (doesn't collapse like GROUP BY)."
+          ],
+          [
+            "NTILE(4) OVER (ORDER BY …)",
+            "Labels each row 1-4 by quartile."
+          ],
+          [
+            "CASE",
+            "IF-THEN logic in SQL: CASE WHEN … THEN … ELSE … END."
+          ],
+          [
+            "Crosstab",
+            "A summary that turns row values (like quarters) into columns."
+          ],
+          [
+            "PIVOT",
+            "SQL Server operator that builds a crosstab with less code."
+          ],
+          [
+            "ROLLUP",
+            "Adds subtotals that follow a hierarchy, plus a grand total."
+          ],
+          [
+            "CUBE",
+            "Adds subtotals for every combination, plus a grand total."
+          ],
+          [
+            "GETDATE()",
+            "Today's date and time in SQL Server."
+          ],
+          [
+            "DATEDIFF",
+            "The difference between two dates, in a unit like yyyy (years)."
+          ],
+          [
+            "MONTH() / YEAR()",
+            "Pull the month or year number out of a date."
+          ],
+          [
+            "ASCII()",
+            "The numeric code of the first character: ASCII('A') = 65."
+          ],
+          [
+            "UPPER()",
+            "Makes text all capital letters."
+          ],
+          [
+            "CONCAT()",
+            "Joins pieces of text together."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "flashcards",
+        "title": "🃏 8. Read the code: what does it do?",
+        "cards": [
+          [
+            "SELECT * FROM products;",
+            "Show every column and every row of products."
+          ],
+          [
+            "SELECT name FROM products WHERE price < 20;",
+            "Names of products cheaper than $20."
+          ],
+          [
+            "SELECT COUNT(*) FROM orders;",
+            "How many orders there are."
+          ],
+          [
+            "SELECT state, COUNT(*) FROM customers GROUP BY state;",
+            "How many customers live in each state."
+          ],
+          [
+            "… GROUP BY category HAVING COUNT(*) > 1;",
+            "Only categories that have more than one row."
+          ],
+          [
+            "SELECT DISTINCT city FROM customers;",
+            "Each different city once (no repeats)."
+          ],
+          [
+            "WHERE last_name LIKE 'B%'",
+            "Last names starting with B."
+          ],
+          [
+            "WHERE price BETWEEN 10 AND 50",
+            "Prices from 10 to 50, including 10 and 50."
+          ],
+          [
+            "WHERE state IN ('UT','NV')",
+            "State is Utah or Nevada."
+          ],
+          [
+            "WHERE joined_on IS NULL",
+            "Rows with no join date."
+          ],
+          [
+            "ORDER BY price DESC",
+            "Sort with the most expensive first."
+          ],
+          [
+            "FROM customers c JOIN orders o ON c.customer_id = o.customer_id",
+            "Combine each order with its customer (matches only)."
+          ],
+          [
+            "LEFT JOIN orders o … WHERE o.order_id IS NULL",
+            "Customers who have no orders."
+          ],
+          [
+            "WHERE price > (SELECT AVG(price) FROM products)",
+            "Products that cost more than the average price."
+          ],
+          [
+            "WITH Totals AS (SELECT …) SELECT * FROM Totals;",
+            "Build a temporary result named Totals (a CTE), then query it."
+          ],
+          [
+            "SELECT TOP 3 name FROM products ORDER BY price DESC;",
+            "The 3 most expensive products (SQL Server)."
+          ],
+          [
+            "EXEC usp_TotalVolume;",
+            "Run the stored procedure named usp_TotalVolume."
+          ],
+          [
+            "CREATE VIEW vh1 AS SELECT …",
+            "Save a query as a reusable view named vh1."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "matchGame",
+        "title": "🧩 Match it: code to meaning",
+        "pairs": [
+          [
+            "SELECT * FROM products;",
+            "Show every column and every row of products."
+          ],
+          [
+            "SELECT name FROM products WHERE price < 20;",
+            "Names of products cheaper than $20."
+          ],
+          [
+            "SELECT COUNT(*) FROM orders;",
+            "How many orders there are."
+          ],
+          [
+            "SELECT state, COUNT(*) FROM customers GROUP BY state;",
+            "How many customers live in each state."
+          ],
+          [
+            "… GROUP BY category HAVING COUNT(*) > 1;",
+            "Only categories that have more than one row."
+          ],
+          [
+            "SELECT DISTINCT city FROM customers;",
+            "Each different city once (no repeats)."
+          ],
+          [
+            "WHERE last_name LIKE 'B%'",
+            "Last names starting with B."
+          ],
+          [
+            "WHERE price BETWEEN 10 AND 50",
+            "Prices from 10 to 50, including 10 and 50."
+          ],
+          [
+            "WHERE state IN ('UT','NV')",
+            "State is Utah or Nevada."
+          ],
+          [
+            "WHERE joined_on IS NULL",
+            "Rows with no join date."
+          ],
+          [
+            "ORDER BY price DESC",
+            "Sort with the most expensive first."
+          ],
+          [
+            "FROM customers c JOIN orders o ON c.customer_id = o.customer_id",
+            "Combine each order with its customer (matches only)."
+          ],
+          [
+            "LEFT JOIN orders o … WHERE o.order_id IS NULL",
+            "Customers who have no orders."
+          ],
+          [
+            "WHERE price > (SELECT AVG(price) FROM products)",
+            "Products that cost more than the average price."
+          ],
+          [
+            "WITH Totals AS (SELECT …) SELECT * FROM Totals;",
+            "Build a temporary result named Totals (a CTE), then query it."
+          ],
+          [
+            "SELECT TOP 3 name FROM products ORDER BY price DESC;",
+            "The 3 most expensive products (SQL Server)."
+          ],
+          [
+            "EXEC usp_TotalVolume;",
+            "Run the stored procedure named usp_TotalVolume."
+          ],
+          [
+            "CREATE VIEW vh1 AS SELECT …",
+            "Save a query as a reusable view named vh1."
+          ]
+        ],
+        "deck": "sql-crash"
+      },
+      {
+        "type": "definitions",
+        "items": [
+          [
+            "Database",
+            "An organized collection of data, stored in tables."
+          ],
+          [
+            "Table",
+            "A set of data about one thing (like Customers), arranged in rows and columns."
+          ],
+          [
+            "Row (record)",
+            "One entry in a table, like one customer."
+          ],
+          [
+            "Column (field)",
+            "One attribute stored for every row, like city or price."
+          ],
+          [
+            "Primary key",
+            "A column (or columns) whose value uniquely identifies each row. No duplicates, no NULLs."
+          ],
+          [
+            "Foreign key",
+            "A column that points to the primary key of another table. It's how tables link together."
+          ],
+          [
+            "Composite key",
+            "A key made of two or more columns together (like TickerSymbol + TradeDate)."
+          ],
+          [
+            "NULL",
+            "A missing or unknown value. It isn't zero and it isn't blank text."
+          ],
+          [
+            "Query",
+            "A request for data, written in SQL."
+          ],
+          [
+            "SQL",
+            "Structured Query Language: the language for asking a relational database for data."
+          ],
+          [
+            "Relational database",
+            "A database of tables that relate to each other through keys."
+          ],
+          [
+            "Schema",
+            "The design of a database: its tables, columns and how they connect."
+          ],
+          [
+            "Data type",
+            "What kind of value a column holds: INT, DECIMAL, CHAR/VARCHAR (text), DATE…"
+          ],
+          [
+            "SSMS",
+            "SQL Server Management Studio: the program you write and run SQL Server queries in."
+          ],
+          [
+            "SELECT",
+            "Lists the columns (or calculations) you want to see."
+          ],
+          [
+            "FROM",
+            "Names the table the data comes from."
+          ],
+          [
+            "WHERE",
+            "Filters ROWS before any grouping. No aggregates allowed here."
+          ],
+          [
+            "GROUP BY",
+            "Makes one group (one result row) per distinct value, for use with aggregates."
+          ],
+          [
+            "HAVING",
+            "Filters GROUPS after GROUP BY. Conditions on COUNT/SUM/AVG go here."
+          ],
+          [
+            "ORDER BY",
+            "Sorts the result. ASC (default) = smallest first, DESC = largest first."
+          ],
+          [
+            "TOP / LIMIT",
+            "Returns only the first N rows: SELECT TOP 5 (SQL Server) or LIMIT 5 (SQLite/MySQL)."
+          ],
+          [
+            "AS (alias)",
+            "Gives a column or table a nickname: SUM(qty) AS total, FROM customers AS c."
+          ],
+          [
+            "DISTINCT",
+            "Removes duplicate rows from the result: SELECT DISTINCT state."
+          ],
+          [
+            "Clause order",
+            "SELECT → FROM → JOIN … ON → WHERE → GROUP BY → HAVING → ORDER BY"
+          ],
+          [
+            "=",
+            "Equals. Text goes in single quotes: state = 'UT'."
+          ],
+          [
+            "<> or !=",
+            "Not equal to."
+          ],
+          [
+            "AND",
+            "Both conditions must be true."
+          ],
+          [
+            "OR",
+            "At least one condition must be true."
+          ],
+          [
+            "NOT",
+            "Flips a condition: NOT IN, NOT BETWEEN, NOT LIKE, IS NOT NULL."
+          ],
+          [
+            "IN",
+            "Matches any value in a list: state IN ('UT','NV')."
+          ],
+          [
+            "BETWEEN",
+            "A range that includes both ends: price BETWEEN 10 AND 50."
+          ],
+          [
+            "LIKE",
+            "Matches a text pattern using wildcards."
+          ],
+          [
+            "% wildcard",
+            "Any number of characters: 'B%' = starts with B, '%book%' = contains book."
+          ],
+          [
+            "_ wildcard",
+            "Exactly one character: '_a%' = second letter is a."
+          ],
+          [
+            "IS NULL",
+            "Finds missing values. Never write = NULL."
+          ],
+          [
+            "ASC / DESC",
+            "Sort smallest-to-largest (ASC, the default) or largest-to-smallest (DESC)."
+          ],
+          [
+            "Aggregate function",
+            "Turns many rows into one value: COUNT, SUM, AVG, MIN, MAX."
+          ],
+          [
+            "COUNT(*)",
+            "Counts every row, including NULLs."
+          ],
+          [
+            "COUNT(column)",
+            "Counts the non-NULL values in a column, repeats included."
+          ],
+          [
+            "COUNT(DISTINCT column)",
+            "Counts each different value once (100 companies, not 262,543 rows)."
+          ],
+          [
+            "SUM",
+            "Adds up a numeric column."
+          ],
+          [
+            "AVG",
+            "The average (mean) of a numeric column; NULLs are skipped."
+          ],
+          [
+            "MIN",
+            "The smallest value."
+          ],
+          [
+            "MAX",
+            "The largest value."
+          ],
+          [
+            "Summary row",
+            "One result row per group made by GROUP BY."
+          ],
+          [
+            "WHERE vs HAVING",
+            "WHERE filters rows before grouping; HAVING filters groups after."
+          ],
+          [
+            "JOIN / INNER JOIN",
+            "Returns only rows that match in BOTH tables."
+          ],
+          [
+            "LEFT JOIN",
+            "ALL rows from the left table + matches from the right (NULLs where no match)."
+          ],
+          [
+            "RIGHT JOIN",
+            "ALL rows from the right table + matches from the left."
+          ],
+          [
+            "FULL OUTER JOIN",
+            "ALL rows from BOTH tables, matched where possible, NULLs elsewhere."
+          ],
+          [
+            "CROSS JOIN",
+            "Every row paired with every row (rows = left × right). No ON clause."
+          ],
+          [
+            "Cartesian product",
+            "Every possible combination of rows from two tables."
+          ],
+          [
+            "ON",
+            "Says which columns must match to join: ON c.customer_id = o.customer_id."
+          ],
+          [
+            "Table alias",
+            "A short name for a table (FROM StockData AS sd) so you can write sd.TickerSymbol."
+          ],
+          [
+            "Unmatched rows",
+            "Rows with no partner in the other table; they show up as NULLs in outer joins."
+          ],
+          [
+            "Find rows with no match",
+            "LEFT JOIN … WHERE right_table.key IS NULL"
+          ],
+          [
+            "Subquery",
+            "A query inside another query, in parentheses."
+          ],
+          [
+            "Scalar subquery",
+            "A subquery that returns exactly one value."
+          ],
+          [
+            "Subquery in WHERE",
+            "WHERE price > (SELECT AVG(price) …): needed because aggregates can't go in WHERE."
+          ],
+          [
+            "IN (subquery)",
+            "Keeps rows whose value appears in the list the subquery returns."
+          ],
+          [
+            "= ANY",
+            "True if it equals at least one value in the subquery's list (same as IN)."
+          ],
+          [
+            ">= ALL",
+            "True if it's greater than or equal to EVERY value in the list; finds the top one."
+          ],
+          [
+            "Correlated subquery",
+            "Uses a column from the outer query, so it runs once per outer row (slower)."
+          ],
+          [
+            "Derived table",
+            "A subquery in the FROM clause, given an alias and used like a table."
+          ],
+          [
+            "EXISTS",
+            "True if the subquery returns at least one row."
+          ],
+          [
+            "Stored procedure",
+            "A saved, named query you reuse. Created with CREATE PROCEDURE."
+          ],
+          [
+            "EXEC",
+            "Runs a stored procedure: EXEC usp_TotalVolume;"
+          ],
+          [
+            "Parameter (@)",
+            "An input to a procedure: @DateofBirth DATETIME."
+          ],
+          [
+            "Trigger",
+            "Code that runs automatically AFTER an INSERT, UPDATE or DELETE."
+          ],
+          [
+            "INSERTED table",
+            "The special table a trigger uses to see the new rows."
+          ],
+          [
+            "View",
+            "A saved query you use like a table. Stores the query, not the data."
+          ],
+          [
+            "CTE",
+            "Common Table Expression: WITH Name AS (…) builds a temporary result to query."
+          ],
+          [
+            "Recursive CTE",
+            "A CTE that refers to itself (base query UNION ALL step) until a WHERE stops it."
+          ],
+          [
+            "UNION ALL",
+            "Stacks the results of two queries, keeping duplicates."
+          ],
+          [
+            "Window function",
+            "Calculates over a set of rows but keeps every row (doesn't collapse like GROUP BY)."
+          ],
+          [
+            "NTILE(4) OVER (ORDER BY …)",
+            "Labels each row 1-4 by quartile."
+          ],
+          [
+            "CASE",
+            "IF-THEN logic in SQL: CASE WHEN … THEN … ELSE … END."
+          ],
+          [
+            "Crosstab",
+            "A summary that turns row values (like quarters) into columns."
+          ],
+          [
+            "PIVOT",
+            "SQL Server operator that builds a crosstab with less code."
+          ],
+          [
+            "ROLLUP",
+            "Adds subtotals that follow a hierarchy, plus a grand total."
+          ],
+          [
+            "CUBE",
+            "Adds subtotals for every combination, plus a grand total."
+          ],
+          [
+            "GETDATE()",
+            "Today's date and time in SQL Server."
+          ],
+          [
+            "DATEDIFF",
+            "The difference between two dates, in a unit like yyyy (years)."
+          ],
+          [
+            "MONTH() / YEAR()",
+            "Pull the month or year number out of a date."
+          ],
+          [
+            "ASCII()",
+            "The numeric code of the first character: ASCII('A') = 65."
+          ],
+          [
+            "UPPER()",
+            "Makes text all capital letters."
+          ],
+          [
+            "CONCAT()",
+            "Joins pieces of text together."
+          ]
+        ]
+      }
+    ]
+  },
+  {
     id: "select",
     title: "1. SELECT, WHERE, ORDER BY",
     blocks: [
