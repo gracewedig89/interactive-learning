@@ -2311,4 +2311,102 @@ export default [
       }
     ]
   },
+  {
+    "id": "exam-sim",
+    "title": "6. Exam simulator (write it like the real test)",
+    "blocks": [
+      {
+        "type": "objectives",
+        "text": "Practice exactly like the real exam: read a question, write a full SQL Server query on the course tables, and format it cleanly. Every question here checks both your result and your formatting, because one point per exam question is for formatting and indentation. The 13 questions total 100 points, like the exam."
+      },
+      {
+        "type": "text",
+        "html": "<p><b>📐 The formatting the exam expects</b> (1 point per question)</p>\n<pre class=\"ord-answer\">SELECT ci.CompanyName,\n       COUNT(*) AS NumDays\nFROM CompanyInformation AS ci\n    INNER JOIN StockData AS sd\n        ON ci.TickerSymbol = sd.TickerSymbol\nWHERE ci.Industry = 'Tech'\nGROUP BY ci.CompanyName\nHAVING COUNT(*) &gt; 3\nORDER BY NumDays DESC;</pre>\n<ul class=\"points\">\n<li><b>Each clause on its own line:</b> SELECT, FROM, JOIN, WHERE, GROUP BY, HAVING, ORDER BY.</li>\n<li><b>Keywords in CAPS</b>, table and column names as they appear in the database.</li>\n<li><b>Indent</b> JOIN/ON lines, AND/OR lines, extra SELECT columns, and everything inside a subquery or CTE.</li>\n<li><b>Use aliases</b> (AS sd, AS ci) and prefix shared columns (sd.TickerSymbol).</li>\n<li>Press <b>Tab</b> in the practice box to indent, just like SSMS.</li>\n</ul>\n<p><b>🎯 Getting partial credit</b></p>\n<ul class=\"points\">\n<li>Never leave a question blank. Write the SELECT and FROM even if you're stuck; those parts earn points.</li>\n<li>Build it <b>one clause at a time</b> and run it after each step in SSMS (the 5-question recipe from Lesson 5).</li>\n<li>Check your row count. If it looks way too big, you probably forgot a JOIN condition or a WHERE.</li>\n<li>Name calculated columns with AS when the question gives a name (NumDays, TotalVolume…).</li>\n</ul>\n<p><b>SQL Server reminders</b> (these all work in this practice too)</p>\n<table class=\"ref\"><thead><tr><th>Need</th><th>SQL Server</th></tr></thead><tbody>\n<tr><td>Top N rows</td><td><code>SELECT TOP 5 … ORDER BY … DESC</code></td></tr>\n<tr><td>Year / month of a date</td><td><code>YEAR(TradeDate)</code>, <code>MONTH(TradeDate)</code></td></tr>\n<tr><td>Today / age</td><td><code>GETDATE()</code>, <code>DATEDIFF(yyyy, @DateofBirth, GETDATE())</code></td></tr>\n<tr><td>Names with spaces or reserved words</td><td><code>[Year]</code>, <code>[1st Qtr]</code>, <code>[State]</code></td></tr>\n<tr><td>Text</td><td>Single quotes only: <code>'Tech'</code></td></tr>\n<tr><td>Recursive CTE</td><td>Just <code>WITH</code> (no RECURSIVE keyword in SQL Server)</td></tr>\n</tbody></table>\n<p class=\"muted\">The practice tables are mini versions of the course database (8 companies, a few days), so your numbers will be smaller than in SSMS. The query you write is the same.</p>"
+      },
+      {
+        "type": "schema"
+      },
+      {
+        "type": "sql",
+        "title": "Exam simulator: 13 questions, 100 points",
+        "tasks": [
+          {
+            "prompt": "(5 pts) Show the TickerSymbol, CompanyName and Industry of every company in the Tech industry, sorted by CompanyName.",
+            "solution": "SELECT TickerSymbol,\n       CompanyName,\n       Industry\nFROM CompanyInformation\nWHERE Industry = 'Tech'\nORDER BY CompanyName;",
+            "format": true,
+            "ordered": true
+          },
+          {
+            "prompt": "(5 pts) For each TickerSymbol in StockData, show how many trading days it has. Name the count NumDays.",
+            "solution": "SELECT TickerSymbol,\n       COUNT(*) AS NumDays\nFROM StockData\nGROUP BY TickerSymbol;",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) For each Industry, show how many companies it has (NumCompanies), but only industries with at least 2 companies.",
+            "solution": "SELECT Industry,\n       COUNT(TickerSymbol) AS NumCompanies\nFROM CompanyInformation\nGROUP BY Industry\nHAVING COUNT(TickerSymbol) >= 2;",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) Show each TickerSymbol and its average closing price in 2024 only (use YEAR(TradeDate) = 2024). Keep only tickers averaging over 100, highest average first.",
+            "solution": "SELECT TickerSymbol,\n       AVG(ST_Close) AS AvgClose\nFROM StockData\nWHERE YEAR(TradeDate) = 2024\nGROUP BY TickerSymbol\nHAVING AVG(ST_Close) > 100\nORDER BY AvgClose DESC;",
+            "format": true,
+            "ordered": true
+          },
+          {
+            "prompt": "(8 pts) Using an INNER JOIN, show CompanyName, City, TradeDate and ST_Close for Ford (ticker 'F'), oldest trade first.",
+            "solution": "SELECT ci.CompanyName,\n       ci.City,\n       sd.TradeDate,\n       sd.ST_Close\nFROM StockData AS sd\n    INNER JOIN CompanyInformation AS ci\n        ON sd.TickerSymbol = ci.TickerSymbol\nWHERE sd.TickerSymbol = 'F'\nORDER BY sd.TradeDate;",
+            "format": true,
+            "ordered": true
+          },
+          {
+            "prompt": "(8 pts) Show the TickerSymbol and CompanyName of any company that has NO rows in StockData.",
+            "solution": "SELECT ci.TickerSymbol,\n       ci.CompanyName\nFROM CompanyInformation AS ci\n    LEFT JOIN StockData AS sd\n        ON ci.TickerSymbol = sd.TickerSymbol\nWHERE sd.TickerSymbol IS NULL;",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) Using a subquery, show TickerSymbol, TradeDate and ST_Close for every row that closed above the overall average closing price.",
+            "solution": "SELECT TickerSymbol,\n       TradeDate,\n       ST_Close\nFROM StockData\nWHERE ST_Close >\n    (SELECT AVG(ST_Close)\n     FROM StockData);",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) Using a subquery with IN, show TickerSymbol, TradeDate and ST_Close for companies in the Automotive industry.",
+            "solution": "SELECT TickerSymbol,\n       TradeDate,\n       ST_Close\nFROM StockData\nWHERE TickerSymbol IN\n    (SELECT TickerSymbol\n     FROM CompanyInformation\n     WHERE Industry = 'Automotive');",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) Show the TOP 5 highest closing prices with their TickerSymbol and TradeDate, highest first. (Write it the SQL Server way with SELECT TOP 5.)",
+            "solution": "SELECT TOP 5 TickerSymbol,\n       TradeDate,\n       ST_Close\nFROM StockData\nORDER BY ST_Close DESC;",
+            "format": true,
+            "ordered": true
+          },
+          {
+            "prompt": "(10 pts) Using a CTE named DailyVolume, total the Volume for each TradeDate, then show only days with total volume over 340,000,000, highest first.",
+            "solution": "WITH DailyVolume AS (\n    SELECT TradeDate,\n           SUM(Volume) AS TotalVolume\n    FROM StockData\n    GROUP BY TradeDate\n)\nSELECT TradeDate,\n       TotalVolume\nFROM DailyVolume\nWHERE TotalVolume > 340000000\nORDER BY TotalVolume DESC;",
+            "format": true,
+            "ordered": true
+          },
+          {
+            "prompt": "(10 pts) Build the JimmyPage crosstab: one row per Year with [1st Qtr] through [4th Qtr] columns (use SUM(CASE …)) and a Total column.",
+            "solution": "SELECT [Year],\n    SUM(CASE WHEN Quarter = 1 THEN Amount ELSE 0 END) AS [1st Qtr],\n    SUM(CASE WHEN Quarter = 2 THEN Amount ELSE 0 END) AS [2nd Qtr],\n    SUM(CASE WHEN Quarter = 3 THEN Amount ELSE 0 END) AS [3rd Qtr],\n    SUM(CASE WHEN Quarter = 4 THEN Amount ELSE 0 END) AS [4th Qtr],\n    SUM(Amount) AS Total\nFROM JimmyPage\nGROUP BY [Year];",
+            "format": true
+          },
+          {
+            "prompt": "(8 pts) Join StockData to Calendar (TradeDate = ActualDate) and show TickerSymbol, ST_Close and DayOfWeek for trades that happened on a Friday.",
+            "solution": "SELECT sd.TickerSymbol,\n       sd.ST_Close,\n       c.DayOfWeek\nFROM StockData AS sd\n    INNER JOIN Calendar AS c\n        ON sd.TradeDate = c.ActualDate\nWHERE c.DayOfWeek = 'Friday';",
+            "format": true
+          },
+          {
+            "prompt": "(6 pts) Show each CompanyName with its number of trading days (NumDays), using a JOIN and GROUP BY, sorted by CompanyName.",
+            "solution": "SELECT ci.CompanyName,\n       COUNT(*) AS NumDays\nFROM CompanyInformation AS ci\n    INNER JOIN StockData AS sd\n        ON ci.TickerSymbol = sd.TickerSymbol\nGROUP BY ci.CompanyName\nORDER BY ci.CompanyName;",
+            "format": true,
+            "ordered": true
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "html": "<p><b>✅ Before exam day</b> (from your instructor's note)</p>\n<ul class=\"points\">\n<li>On the computer you'll use: log into <b>Canvas</b>, open <b>SSMS</b>, <b>connect to the course database</b> and run a quick <code>SELECT TOP 5 * FROM StockData;</code></li>\n<li>Run Honorlock's system check, and make sure your webcam, microphone and the browser extension work.</li>\n<li>Charge the laptop, close other apps, and have a quiet room with a clear desk.</li>\n</ul>"
+      }
+    ]
+  },
 ];

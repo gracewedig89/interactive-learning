@@ -564,10 +564,34 @@ function chromePanel() {
 
 /* ---------- in-browser SQLite for SQL practice ---------- */
 let sqlDb;
+// SQL Server look-alikes so she can practice exactly what she'll write on the exam.
+function sqlServerShims(db) {
+  const d = (v) => (v == null ? null : new Date(String(v).length <= 10 ? String(v) + "T00:00:00" : String(v)));
+  db.create_function("YEAR", (v) => (v == null ? null : d(v).getFullYear()));
+  db.create_function("MONTH", (v) => (v == null ? null : d(v).getMonth() + 1));
+  db.create_function("DAY", (v) => (v == null ? null : d(v).getDate()));
+  db.create_function("GETDATE", () => new Date().toISOString().slice(0, 19).replace("T", " "));
+  db.create_function("ISNULL", (a, b) => (a == null ? b : a));
+  db.create_function("LEN", (v) => (v == null ? null : String(v).replace(/\s+$/, "").length));
+  db.create_function("DATEDIFF", (unit, a, b) => {
+    const x = d(a), y = d(b), u = String(unit).toLowerCase();
+    if (/^(yyyy|yy|year)$/.test(u)) return y.getFullYear() - x.getFullYear();
+    if (/^(mm|m|month)$/.test(u)) return (y.getFullYear() - x.getFullYear()) * 12 + y.getMonth() - x.getMonth();
+    return Math.round((Date.UTC(y.getFullYear(), y.getMonth(), y.getDate()) - Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())) / 864e5);
+  });
+  return db;
+}
+// SELECT TOP n … → SELECT … LIMIT n, and drop SSMS "GO" lines.
+function toSqlite(sql) {
+  let q = sql.replace(/^\s*GO\s*$/gim, "");
+  const m = q.match(/\bSELECT\s+TOP\s*\(?\s*(\d+)\s*\)?\s+/i);
+  if (m) { q = q.replace(m[0], "SELECT ").replace(/;?\s*$/, ` LIMIT ${m[1]};`); }
+  return q;
+}
 async function getSqlDb() {
   if (!sqlDb) {
     const SQL = await initSqlJs();
-    sqlDb = new SQL.Database();
+    sqlDb = sqlServerShims(new SQL.Database());
     sqlDb.run(PRACTICE.schema);
     sqlDb.run(PRACTICE.data);
   }
@@ -578,9 +602,9 @@ async function runQuery(sql) {
   if (!/^\s*(select|with|pragma)\b/i.test(sql)) {
     // Keep practice data intact: run changes on a throwaway copy.
     const SQL = await initSqlJs();
-    target = new SQL.Database(target.export());
+    target = sqlServerShims(new SQL.Database(target.export()));
   }
-  const res = target.exec(sql);
+  const res = target.exec(toSqlite(sql));
   const last = res.at(-1) || { columns: [], values: [] };
   return { columns: last.columns, rows: last.values };
 }
@@ -591,6 +615,33 @@ function sameResult(a, b, ordered) {
   const rb = b.rows.map((r) => r.map(norm).join("\u0000"));
   if (!ordered) { ra.sort(); rb.sort(); }
   return ra.every((r, i) => r === rb[i]);
+}
+
+// Exam formatting: one point per question for clean, indented SQL.
+function formatTips(q) {
+  const tips = [];
+  const lines = q.split("\n").filter((l) => l.trim());
+  if (lines.length === 1 && q.length > 35) tips.push("Put each clause (SELECT, FROM, WHERE, GROUP BY…) on its own line instead of one long line.");
+  // Clause keywords at the top level (not inside parentheses) should start their own line.
+  const kw = /\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|(?:INNER\s+|LEFT\s+(?:OUTER\s+)?|RIGHT\s+(?:OUTER\s+)?|FULL\s+(?:OUTER\s+)?|CROSS\s+)?JOIN)\b/gi;
+  const late = new Set();
+  for (const line of q.split("\n")) {
+    let depth = 0; const t = line.trim();
+    let m; kw.lastIndex = 0;
+    while ((m = kw.exec(line))) {
+      depth = (line.slice(0, m.index).match(/\(/g) || []).length - (line.slice(0, m.index).match(/\)/g) || []).length;
+      const before = line.slice(0, m.index).trim();
+      if (depth <= 0 && before && !/^(LEFT|RIGHT|FULL|INNER|CROSS|OUTER)$/i.test(before.split(/\s+/).pop())) late.add(m[1].toUpperCase().replace(/\s+/g, " "));
+    }
+    void t;
+  }
+  if (late.size && lines.length > 1) tips.push(`Start ${[...late].slice(0, 3).join(", ")} on a new line.`);
+  if (/\b(select|from|where|group by|order by|having|join|inner join|left join)\b/.test(q)) tips.push("Write SQL keywords in CAPS (SELECT, FROM, WHERE…). It's the class style and easier to read.");
+  if (q.split("\n").some((l) => /^(AND|OR|ON)\b/i.test(l))) tips.push("Indent AND / OR / ON lines under the clause they belong to.");
+  let depth = 0; let badIndent = false;
+  for (const l of q.split("\n")) { if (depth > 0 && l.trim() && !/^\s/.test(l) && !/^\)/.test(l.trim())) badIndent = true; depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length; }
+  if (badIndent) tips.push("Indent the lines inside a subquery or CTE so it's clear they belong inside the parentheses.");
+  return tips;
 }
 
 /* ---------- lesson rendering ---------- */
@@ -896,7 +947,16 @@ const RENDER = {
 
   sql: (b) => h("section", { class: "block" }, h("h2", {}, b.title || "Write the query"), b.intro ? h("p", { style: "margin:0" }, b.intro) : null, b.tasks.map((task, n) => {
     const id = `sql-${uid()}`;
-    const editor = h("textarea", { class: "code", id, rows: 3, spellcheck: "false", placeholder: "SELECT …" });
+    const editor = h("textarea", { class: "code", id, rows: task.format ? 8 : 3, spellcheck: "false", placeholder: task.format ? "SELECT column1,\n       column2\nFROM Table\nWHERE …" : "SELECT …" });
+    // Tab indents (4 spaces) like SSMS instead of jumping out of the box; Shift+Tab un-indents.
+    editor.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const { selectionStart: a, selectionEnd: z, value: v } = editor;
+      if (e.shiftKey) { const ls = v.lastIndexOf("\n", a - 1) + 1; const n = v.slice(ls, ls + 4).match(/^ {1,4}/)?.[0].length || 0; if (n) { editor.value = v.slice(0, ls) + v.slice(ls + n); editor.selectionStart = editor.selectionEnd = Math.max(ls, a - n); } }
+      else { editor.value = v.slice(0, a) + "    " + v.slice(z); editor.selectionStart = editor.selectionEnd = a + 4; }
+      editor.dispatchEvent(new Event("input"));
+    });
     const out = h("div", { class: "sql-out" });
     const tid = track.add();
     const hint = task.hint ? h("p", { class: "note", hidden: true }, "💡 ", task.hint) : null;
@@ -918,6 +978,7 @@ const RENDER = {
         const why = ok ? [] : diagnoseSql(q, mine, want, task, diff);
         const miss = { concept: task.prompt, detail: `My query was: ${q}` };
         out.replaceChildren(
+          task.format ? (() => { const tips = formatTips(q); return h("div", { class: `fb ${tips.length ? "warn" : "good"} fmt-fb` }, h("b", {}, tips.length ? "📐 Formatting (1 pt): fix these" : "📐 Formatting (1 pt): ✓ clean and indented"), tips.length ? h("ul", { class: "why-list" }, tips.map((t) => h("li", {}, t))) : null); })() : null,
           h("div", { class: "fb " + (ok ? "good" : "bad") }, h("b", {}, ok ? "✓ Correct. Your result matches." : "✗ Not quite."),
             why.length ? h("ul", { class: "why-list" }, why.map((w) => h("li", {}, w))) : null,
             !ok ? h("div", { class: "row" },

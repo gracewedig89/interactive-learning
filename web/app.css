@@ -689,3 +689,6 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .mg-tile.nope { border-color: var(--bad); background: var(--bad-soft); animation: mg-shake .4s; }
 @keyframes mg-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @media (max-width: 760px) { .mg-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fc-card { height: 220px; } .fc-term { font-size: 1.3rem; } }
+.fb.warn { background: #fff3d6; color: #6a4500; border-color: #e0b04a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fb.warn { background: #3a2f12; color: #ffd98a; } }
+:root[data-theme="dark"] .fb.warn { background: #3a2f12; color: #ffd98a; }
