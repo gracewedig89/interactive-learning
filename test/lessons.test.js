@@ -5,6 +5,7 @@ import initSqlJs from "sql.js";
 import accounting from "../public/lessons/accounting.js";
 import sql from "../public/lessons/sql.js";
 import { sameResult } from "../public/js/sqlrunner.js";
+import { sqlServerShims, toSqlite } from "../public/lessons/sql-shims.js";
 
 test("every journal entry balances and has a valid side", () => {
   for (const lesson of accounting)
@@ -26,13 +27,13 @@ test("classify answers and quiz answers point at real options", () => {
 
 test("every SQL solution runs against the practice database and returns rows", async () => {
   const SQL = await initSqlJs();
-  const db = new SQL.Database();
+  const db = sqlServerShims(new SQL.Database());
   db.run(fs.readFileSync("public/lessons/practice-db.sql", "utf8"));
   db.run(fs.readFileSync("public/lessons/practice-data.sql", "utf8"));
   for (const lesson of sql)
     for (const b of lesson.blocks.filter((b) => b.type === "sql"))
       for (const t of b.tasks) {
-        const res = db.exec(t.solution);
+        const res = db.exec(toSqlite(t.solution));
         assert.ok(res.length && res[0].values.length, t.prompt);
       }
 });

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import accounting from "../public/lessons/accounting.js";
 import sql from "../public/lessons/sql.js";
 import formulas from "../public/lessons/formulas.js";
+import { sqlServerShims, toSqlite } from "../public/lessons/sql-shims.js";
 
 const root = new URL("../", import.meta.url);
 const read = (p) => fs.readFileSync(new URL(p, root), "utf8");
@@ -38,6 +39,10 @@ ${Object.keys(vendor).filter((n) => !onDemand.includes(n)).map((n) => `<script s
 window.LESSONS = ${json({ accounting, sql, "language-arts": [], biology: [] })};
 window.FORMULAS = ${json(formulas)};
 window.PRACTICE = ${json({ schema: read("public/lessons/practice-db.sql"), data: read("public/lessons/practice-data.sql") })};
+</script>
+<script>
+${sqlServerShims.toString()}
+${toSqlite.toString()}
 </script>
 <script>
 ${read("web/fx3d.js")}
