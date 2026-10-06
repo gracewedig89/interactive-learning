@@ -28,13 +28,19 @@ CREATE TABLE CompanyInformation (
   TickerSymbol TEXT PRIMARY KEY,
   CompanyName  TEXT,
   Industry     TEXT,
+  PhoneNumber  TEXT,
+  Address      TEXT,
   City         TEXT,
   State        TEXT,
-  PhoneNumber  TEXT
+  ZipCode      TEXT,
+  Country      TEXT
 );
 CREATE TABLE StockData (
   TickerSymbol TEXT,
   TradeDate    DATE,
+  ST_Open      REAL,
+  ST_High      REAL,
+  ST_Low       REAL,
   ST_Close     REAL,
   Volume       INTEGER,
   PRIMARY KEY (TickerSymbol, TradeDate)
@@ -42,6 +48,7 @@ CREATE TABLE StockData (
 CREATE TABLE Calendar (
   ActualDate DATE PRIMARY KEY,
   MonthName  TEXT,
+  DayNumber  INTEGER,
   YearNumber INTEGER,
   DayOfWeek  TEXT,
   DayType    TEXT

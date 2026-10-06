@@ -1,8 +1,10 @@
 // Built-in starter lessons. All exercises run against public/lessons/practice-db.sql in the browser.
 import stepByStep from "./sql-steps.js";
+import practiceTest from "./sql-practice-test.js";
 
 export default [
   stepByStep,
+  practiceTest,
   {
     "id": "crash-course",
     "title": "⚡ SQL crash course: every term (start here)",

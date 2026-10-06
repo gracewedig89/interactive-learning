@@ -988,11 +988,11 @@ const RENDER = {
         if (!restore) note(`SQL "${task.prompt}": error ${e.message}`);
         track.attempt(tid, false, { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` }, restore);
       }
-      if (tries >= 2) reveal.hidden = false;
+      if (tries >= 2 && !task.noReveal) reveal.hidden = false;
     };
     editor.addEventListener("keydown", (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter" && run());
     if (saved?.ran) queueMicrotask(() => run(true));
-    if (tries >= 2) reveal.hidden = false;
+    if (tries >= 2 && !task.noReveal) reveal.hidden = false;
     return track.at(tid, h("div", { class: "sql-task" }, h("label", { for: id }, `${n + 1}. ${task.prompt}`),
       hint ? h("div", {}, h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint"), hint) : null, editor,
       h("div", { class: "row" }, h("button", { class: "btn small", onclick: () => run() }, "Run ▸"), h("span", { class: "muted" }, "Ctrl/⌘ + Enter"), reveal), out));
