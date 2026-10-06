@@ -692,3 +692,14 @@ body.fx-smash #app { animation: smash .45s ease-out; }
 .fb.warn { background: #fff3d6; color: #6a4500; border-color: #e0b04a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fb.warn { background: #3a2f12; color: #ffd98a; } }
 :root[data-theme="dark"] .fb.warn { background: #3a2f12; color: #ffd98a; }
+/* Step-by-step levels */
+.level { display: grid; gap: 1rem; border: 2px solid var(--rule); border-radius: 18px; padding: 1rem; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.level.passed { border-color: var(--good); }
+.level.locked { opacity: .65; }
+.level-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.level-head h2 { margin: 0; flex: 1; font-size: 1.3rem; }
+.level-badge { background: var(--sparkle); color: var(--accent-ink); box-shadow: var(--glow); font-weight: 800; border-radius: 99px; padding: .2rem .7rem; font-size: .85rem; }
+.level-goal { margin: 0; font-weight: 600; }
+.level-lock { padding: 1rem; text-align: center; border: 2px dashed var(--rule); border-radius: 12px; font-weight: 700; color: var(--ink-soft); }
+.level-body { display: grid; gap: 1.1rem; }
+.level-up { background: var(--good-soft); color: var(--good); border-radius: 10px; padding: .7rem 1rem; font-weight: 700; }

@@ -1112,7 +1112,9 @@ const RENDER = {
         const id = track.add();
         const slot = h("div");
         // Same scramble every time, so saved work lines up.
-        const pool = q.pieces.map((t, i) => ({ t, i, k: (i * 5 + 3) % (q.pieces.length + 2) })).sort((x, y) => x.k - y.k || x.i - y.i);
+        let pool = q.pieces.map((t, i) => ({ t, i, k: (i * 5 + 3) % (q.pieces.length + 2) })).sort((x, y) => x.k - y.k || x.i - y.i);
+        // Some lengths come out unscrambled; never hand over the answer already in order.
+        if (pool.every((pc, j) => pc.i === j)) pool = [...pool.slice(1).reverse(), pool[0]];
         let picked = [];
         const built = h("div", { class: "ord-built", "aria-live": "polite" });
         const bank = h("div", { class: "ord-bank" });
@@ -1610,6 +1612,59 @@ function studyBlocks(lesson) {
     : [b]);
 }
 
+// Render a lesson's blocks. Blocks after a {type:"level"} marker form a level; each level stays
+// locked until every exercise in the level before it is passed off.
+function renderBlocks(blocks) {
+  const els = [], levels = [];
+  let cur = null;
+  blocks.forEach((b, bi) => {
+    if (b.type === "level") {
+      cur = { b, start: track.count, body: h("div", { class: "level-body" }), n: levels.length + 1 };
+      levels.push(cur);
+      return;
+    }
+    const el = RENDER[b.type]?.(b);
+    if (el?.dataset) el.dataset.bi = bi;
+    if (cur) { if (el) cur.body.append(el); cur.end = track.count; } else els.push(el);
+  });
+  if (!levels.length) return els;
+  let lastPassed = -1, firstDraw = true;
+  for (const lv of levels) {
+    lv.ids = Array.from({ length: (lv.end ?? lv.start) - lv.start }, (_, k) => "i" + (lv.start + k));
+    lv.chip = h("span", { class: "chip" });
+    lv.lock = h("div", { class: "level-lock" }, `🔒 Pass off Level ${lv.n - 1} to unlock this level.`);
+    lv.el = h("section", { class: "level", id: `level-${lv.n}` },
+      h("header", { class: "level-head" }, h("span", { class: "level-badge" }, `Level ${lv.n}`), h("h2", {}, lv.b.title), lv.chip),
+      lv.b.goal ? h("p", { class: "level-goal" }, "🎯 ", lv.b.goal) : null, lv.lock, lv.body);
+  }
+  const update = () => {
+    let open = true, passedCount = 0;
+    for (const lv of levels) {
+      const done = lv.ids.filter((id) => track.solved.has(id)).length;
+      const passed = lv.ids.length > 0 && done === lv.ids.length;
+      lv.body.hidden = !open; lv.lock.hidden = open;
+      lv.el.classList.toggle("locked", !open); lv.el.classList.toggle("passed", passed);
+      lv.chip.className = `chip ${passed ? "done" : ""}`;
+      lv.chip.textContent = !open ? "Locked" : passed ? "✓ Passed off" : `${done} of ${lv.ids.length} passed`;
+      if (passed) passedCount++;
+      open = open && passed;
+    }
+    // Just passed a level? Cheer and point to the next one.
+    if (!firstDraw && passedCount > lastPassed && passedCount < levels.length) {
+      const next = levels[passedCount];
+      const note = h("div", { class: "level-up", role: "status" }, `🎉 Level ${passedCount} passed off! Level ${next.n} is unlocked.`, " ",
+        h("button", { class: "linkish", onclick: () => next.el.scrollIntoView({ behavior: "smooth", block: "start" }) }, "Go to it →"));
+      levels[passedCount - 1].el.append(note);
+      setTimeout(() => note.remove(), 9000);
+    }
+    lastPassed = passedCount; firstDraw = false;
+  };
+  track.listeners.push(update);
+  queueMicrotask(update);
+  update();
+  return [...els, ...levels.map((lv) => lv.el)];
+}
+
 function renderLesson(lesson) {
   track = newTracker(lesson);
   const blocks = studyBlocks(lesson);
@@ -1619,9 +1674,9 @@ function renderLesson(lesson) {
     h("div", { class: "row" }, h("h1", { style: "flex:1" }, lesson.title), done ? h("span", { class: "chip done" }, "✓ Completed") : null),
     h("button", { class: "watch-btn", onclick: () => openVideo({ key: `${course}:${state.lessonId || lesson.title}`, courseKey: course, topic: lesson.title, lessonTitle: lesson.title, material: lessonMaterial(lesson) }) },
       h("span", { class: "watch-face", "aria-hidden": "true" }, "👨‍🏫"), h("span", {}, h("b", {}, `🎬 Watch ${TEACHER} explain this lesson`), h("small", {}, "A short video with chalkboard visuals, read out loud"))),
-    blocks.map((b, bi) => { const el = RENDER[b.type]?.(b); if (el?.dataset) el.dataset.bi = bi; return el; }));
+    renderBlocks(blocks));
   // A 🎬 button on each section: a short video on just that part of this lesson.
-  article.querySelectorAll(":scope > [data-bi]").forEach((sec) => {
+  article.querySelectorAll("[data-bi]").forEach((sec) => {
     const n = Number(sec.dataset.bi);
     const h2 = sec.querySelector("h2");
     const b = blocks[n];
