@@ -937,7 +937,20 @@ const RENDER = {
     const tid = track.add();
     const hint = task.hint ? h("p", { class: "note", hidden: true }, "💡 ", task.hint) : null;
     let tries = 0;
-    const reveal = h("button", { class: "linkish", hidden: true, onclick: () => { editor.value = task.solution; out.replaceChildren(stepsPanel(task.solution, "How the answer works, one step at a time")); } }, "Show an answer and how it works");
+    // The answer is shown to read, never dropped into the box: she types it herself to pass it off.
+    const reveal = h("button", { class: "linkish", hidden: true, onclick: () => {
+      out.replaceChildren(h("div", { class: "fb warn" }, h("b", {}, "Here's one answer. Now type it yourself in the box above and press Run to pass it off."),
+        h("pre", { class: "ord-answer" }, task.solution)), stepsPanel(task.solution, "How the answer works, one step at a time"));
+      editor.focus();
+    } }, "Show an answer and how it works");
+    const squash = (t) => t.replace(/\s+/g, " ").trim().toLowerCase();
+    editor.addEventListener("paste", (e) => {
+      const t = e.clipboardData?.getData("text") || "";
+      if (t.length > 12 && squash(task.solution).includes(squash(t))) {
+        e.preventDefault();
+        out.replaceChildren(h("div", { class: "fb warn" }, h("b", {}, "✋ No pasting the answer. "), "Type it out yourself. That's how it sticks for the exam."));
+      }
+    });
     const saved = track.answer(tid);
     if (saved?.q) { editor.value = saved.q; tries = saved.tries || 0; }
     editor.addEventListener("input", () => track.record(tid, { q: editor.value, tries }));
