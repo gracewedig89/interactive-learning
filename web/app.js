@@ -268,8 +268,14 @@ function mergeProgress(into, other = {}) {
     const solved = Math.max(l.solved || 0, r.solved || 0);
     const total = Math.max(l.total || 0, r.total || 0);
     const localEmpty = !Object.keys(l).length;
-    if (localEmpty || (r.updatedAt || "") > (l.updatedAt || "")) Object.assign(l, r); // newer copy wins for the mistake list and practice set
+    const remoteNewer = localEmpty || (r.updatedAt || "") > (l.updatedAt || "");
+    const la = l.answers || {}, ra = r.answers || {};
+    const levelsPassed = [...new Set([...(l.levelsPassed || []), ...(r.levelsPassed || [])])].sort((a, b) => a - b);
+    if (remoteNewer) Object.assign(l, r); // newer copy wins for the mistake list and practice set
     else for (const [f, v] of Object.entries(r)) if (l[f] === undefined) l[f] = v; // fill anything this copy is missing
+    // Never lose saved answers or passed levels to an older copy (another tab or device).
+    l.answers = remoteNewer ? { ...la, ...ra } : { ...ra, ...la };
+    if (levelsPassed.length) l.levelsPassed = levelsPassed;
     Object.assign(l, { done, completedAt, solved, total });
     if (!l.done) delete l.done;
     if (!l.completedAt) delete l.completedAt;
@@ -953,16 +959,19 @@ const RENDER = {
     });
     const saved = track.answer(tid);
     if (saved?.q) { editor.value = saved.q; tries = saved.tries || 0; }
-    editor.addEventListener("input", () => track.record(tid, { q: editor.value, tries }));
+    editor.addEventListener("input", () => track.record(tid, { ...track.answer(tid), q: editor.value, tries }));
     const run = async (restore = false) => {
       const q = editor.value.trim();
       if (!q) return;
-      if (!restore) { tries++; track.record(tid, { q: editor.value, tries, ran: true }); }
+      if (!restore) { tries++; track.record(tid, { ...track.answer(tid), q: editor.value, tries, ran: true }); }
       let want;
       try { want = await runQuery(task.solution); } catch { want = { columns: [], rows: [] }; }
       try {
         const mine = await runQuery(q);
         const ok = sameResult(mine, want, task.ordered);
+        // Typed but never run: only count it on reload if it's right, and show nothing if it isn't.
+        if (restore === "quiet" && !ok) return;
+        if (!restore && ok) track.record(tid, { ...track.answer(tid), passed: true });
         const diff = diffRows(mine, want);
         const why = ok ? [] : diagnoseSql(q, mine, want, task, diff);
         const miss = { concept: task.prompt, detail: `My query was: ${q}` };
@@ -980,18 +989,19 @@ const RENDER = {
               resultTable(want, diff.missing)) : null),
           h("details", { class: "steps-toggle" }, h("summary", {}, ok ? "See how your query works, step by step" : "See what your query does, step by step"), stepsPanel(q)));
         if (!restore) note(`SQL "${task.prompt}": \`${q}\` (${ok ? "right" : "wrong"}).`);
-        track.attempt(tid, ok, miss, restore);
+        track.attempt(tid, ok || (restore && !!track.answer(tid)?.passed), miss, restore);
       } catch (e) {
+        if (restore === "quiet") return;
         const tip = sqlErrorTip(e.message);
         out.replaceChildren(h("div", { class: "fb bad" }, h("b", {}, "SQL error: "), e.message, tip ? h("p", { style: "margin:.35rem 0 0" }, "💡 ", tip) : null,
           h("button", { class: "linkish", onclick: () => tutor.ask(`Task: "${task.prompt}"\nMy query:\n${q}\nError: ${e.message}\nWhat does this mean and how do I fix it?`) }, "Ask the tutor")));
         if (!restore) note(`SQL "${task.prompt}": error ${e.message}`);
-        track.attempt(tid, false, { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` }, restore);
+        track.attempt(tid, !!(restore && track.answer(tid)?.passed), { concept: task.prompt, detail: `My query ${q} failed: ${e.message}` }, restore);
       }
       if (tries >= 2 && !task.noReveal) reveal.hidden = false;
     };
     editor.addEventListener("keydown", (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter" && run());
-    if (saved?.ran) queueMicrotask(() => run(true));
+    if (saved?.q) queueMicrotask(() => run(saved.ran ? true : "quiet"));
     if (tries >= 2 && !task.noReveal) reveal.hidden = false;
     return track.at(tid, h("div", { class: "sql-task" }, h("label", { for: id }, `${n + 1}. ${task.prompt}`),
       hint ? h("div", {}, h("button", { class: "linkish", onclick: (e) => { hint.hidden = false; e.currentTarget.remove(); } }, "Show a hint"), hint) : null, editor,
@@ -1642,6 +1652,8 @@ function renderBlocks(blocks) {
   });
   if (!levels.length) return els;
   let lastPassed = -1, firstDraw = true;
+  // Once a level is passed off it stays passed, even if an answer later reloads differently.
+  const sticky = new Set(track.saved.levelsPassed || []);
   for (const lv of levels) {
     lv.ids = Array.from({ length: (lv.end ?? lv.start) - lv.start }, (_, k) => "i" + (lv.start + k));
     lv.chip = h("span", { class: "chip" });
@@ -1654,12 +1666,15 @@ function renderBlocks(blocks) {
     let open = true, passedCount = 0;
     for (const lv of levels) {
       const done = lv.ids.filter((id) => track.solved.has(id)).length;
-      const passed = lv.ids.length > 0 && done === lv.ids.length;
+      if (lv.ids.length > 0 && done === lv.ids.length && !sticky.has(lv.n)) {
+        sticky.add(lv.n); track.saved.levelsPassed = [...sticky].sort((a, b) => a - b); saveProgress();
+      }
+      const passed = sticky.has(lv.n);
       lv.body.hidden = !open; lv.lock.hidden = open;
       lv.el.classList.toggle("locked", !open); lv.el.classList.toggle("passed", passed);
       lv.chip.className = `chip ${passed ? "done" : ""}`;
       lv.chip.textContent = !open ? "Locked" : passed ? "✓ Passed off" : `${done} of ${lv.ids.length} passed`;
-      if (passed) passedCount++;
+      if (open && passed) passedCount++;
       open = open && passed;
     }
     // Just passed a level? Cheer and point to the next one.
